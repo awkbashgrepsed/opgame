@@ -10,13 +10,14 @@ use crate::ui::UIManager;
 use crate::mission::MissionManager;
 use crate::sound::SoundManager;
 use glam::Vec3;
+use std::time::Instant;
 use winit::event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::Window;
 
-const FIXED_DT: f32 = 1.0 / 60.0;
 const WALK_SPEED: f32 = 3.0;
 const SPRINT_SPEED: f32 = 6.0;
+const MAX_FRAME_DT: f32 = 0.1;
 
 pub struct Game {
     renderer: Renderer,
@@ -34,6 +35,7 @@ pub struct Game {
     game_time: f32,
     paused: bool,
     mouse_captured: bool,
+    last_frame: Instant,
 }
 
 struct InputState {
@@ -58,7 +60,6 @@ impl Game {
         let ui_manager = UIManager::new();
         let mut mission_manager = MissionManager::new();
         let sound_manager = SoundManager::new();
-
         mission_manager.create_tutorial_mission();
 
         let input_state = InputState {
@@ -88,6 +89,7 @@ impl Game {
             game_time: 0.0,
             paused: false,
             mouse_captured: false,
+            last_frame: Instant::now(),
         };
 
         game.set_mouse_capture(true);
@@ -96,7 +98,6 @@ impl Game {
 
     pub fn handle_key(&mut self, event: KeyEvent) {
         let pressed = event.state == ElementState::Pressed;
-
         if let PhysicalKey::Code(code) = event.physical_key {
             match code {
                 KeyCode::KeyW => self.input_state.forward = pressed,
@@ -165,12 +166,17 @@ impl Game {
     }
 
     pub fn update_and_render(&mut self) {
-        if !self.paused { self.update(); }
+        let now = Instant::now();
+        let mut dt = (now - self.last_frame).as_secs_f32();
+        self.last_frame = now;
+        dt = dt.min(MAX_FRAME_DT);
+
+        if !self.paused { self.update(dt); }
         self.renderer.render(&self.camera, &self.player, &self.world, &self.npc_manager, &self.vehicle_manager, &self.ui_manager);
     }
 
-    fn update(&mut self) {
-        self.game_time += FIXED_DT;
+    fn update(&mut self, dt: f32) {
+        self.game_time += dt;
         let mut movement = Vec3::ZERO;
         let speed = if self.input_state.sprint { SPRINT_SPEED } else { WALK_SPEED };
         let forward = self.camera.flat_forward();
@@ -179,18 +185,20 @@ impl Game {
         if self.input_state.backward { movement -= forward; }
         if self.input_state.right { movement += right; }
         if self.input_state.left { movement -= right; }
+
         if movement.length_squared() > 0.0001 {
             let direction = movement.normalize();
             self.player.rotation = direction.x.atan2(direction.z);
-            self.player.position += direction * speed * FIXED_DT;
+            self.player.position += direction * speed * dt;
         }
+
         self.player.update(self.game_time);
         self.physics_engine.update(&mut self.player, self.game_time);
         self.npc_manager.update(&self.player, &self.world, self.game_time);
         self.vehicle_manager.update(self.game_time);
         self.combat_system.update(&mut self.player, &mut self.npc_manager, self.game_time);
         self.mission_manager.update(&self.player, &self.npc_manager, self.game_time);
-        self.world.update_time(FIXED_DT);
+        self.world.update_time(dt);
         self.camera.follow(self.player.position + Vec3::new(0.0, 1.0, 0.0));
         self.ui_manager.update(&self.player, &self.mission_manager, self.game_time);
     }
