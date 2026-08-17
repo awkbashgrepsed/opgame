@@ -49,11 +49,14 @@ impl Camera {
         self.flat_forward().cross(self.up).normalize()
     }
 
-    /// Rotate the camera by mouse deltas. Pitch is clamped so the camera
-    /// cannot flip upside-down.
+    /// Rotate the camera from raw mouse movement.
+    ///
+    /// The signs intentionally make the camera feel natural for the current
+    /// third-person view: moving the mouse right looks right, and moving it
+    /// up looks up.
     pub fn rotate(&mut self, dx: f32, dy: f32) {
-        self.yaw += dx;
-        self.pitch = (self.pitch - dy).clamp(-1.45, 1.45);
+        self.yaw -= dx;
+        self.pitch = (self.pitch + dy).clamp(-1.45, 1.45);
     }
 
     /// Rebuild the camera position around a world-space target.
