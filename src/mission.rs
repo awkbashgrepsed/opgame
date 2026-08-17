@@ -103,7 +103,7 @@ impl MissionManager {
         }
     }
 
-    pub fn update(&mut self, player: &Player, _npc_manager: &NPCManager, _time: f32) {
+    pub fn update(&mut self, _player: &Player, _npc_manager: &NPCManager, _time: f32) {
         // Update mission logic
         if let Some(mission) = self.get_current_mission_mut() {
             if mission.status == MissionStatus::InProgress {

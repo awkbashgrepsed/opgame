@@ -2,7 +2,7 @@ use glam::Vec3;
 use uuid::Uuid;
 use serde::{Serialize, Deserialize};
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 pub enum Weapon {
     Fist,
     Pistol,

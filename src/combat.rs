@@ -1,6 +1,5 @@
 use crate::player::Player;
 use crate::npc::{NPCManager, NPCState};
-use uuid::Uuid;
 
 pub struct CombatSystem {
     damage_cooldown: f32,
@@ -13,7 +12,7 @@ impl CombatSystem {
         }
     }
 
-    pub fn update(&mut self, player: &mut Player, npc_manager: &mut NPCManager, time: f32) {
+    pub fn update(&mut self, player: &mut Player, npc_manager: &mut NPCManager, _time: f32) {
         self.damage_cooldown = (self.damage_cooldown - 0.016).max(0.0);
 
         // Check for NPC hits
@@ -40,9 +39,5 @@ impl CombatSystem {
                 }
             }
         }
-    }
-
-    pub fn deal_damage(&mut self, attacker_id: Uuid, target_id: Uuid, damage: f32) {
-        // Logic for dealing damage between entities
     }
 }
