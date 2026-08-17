@@ -60,14 +60,11 @@ impl Renderer {
 impl Drop for Renderer{fn drop(&mut self){unsafe{winapi::um::wingdi::wglMakeCurrent(std::ptr::null_mut(),std::ptr::null_mut());winapi::um::wingdi::wglDeleteContext(self.hglrc);if let RawWindowHandle::Win32(handle)=self.window.raw_window_handle(){winapi::um::winuser::ReleaseDC(handle.hwnd as Hwnd,self.hdc);}}}}
 
 unsafe fn draw_settings_menu(selected:usize,vsync:bool,sensitivity:f32,invert_x:bool,invert_y:bool){
-    // A simple OpenGL settings panel. Values are also reflected by the row controls;
-    // text labels will move into the real UI/font system when that system is introduced.
     glMatrixMode(GL_PROJECTION);glLoadMatrixf(glam::Mat4::orthographic_rh_gl(-1.0,1.0,-1.0,1.0,-1.0,1.0).to_cols_array().as_ptr());glMatrixMode(GL_MODELVIEW);glLoadMatrixf(glam::Mat4::IDENTITY.to_cols_array().as_ptr());
     gl::Disable(gl::DEPTH_TEST);
-    glColor3f(0.04,0.05,0.07);glBegin(GL_QUADS);glVertex3f(-0.72,-0.88,0);glVertex3f(0.72,-0.88,0);glVertex3f(0.72,0.88,0);glVertex3f(-0.72,0.88,0);glEnd();
+    glColor3f(0.04,0.05,0.07);glBegin(GL_QUADS);glVertex3f(-0.72,-0.88,0.0);glVertex3f(0.72,-0.88,0.0);glVertex3f(0.72,0.88,0.0);glVertex3f(-0.72,0.88,0.0);glEnd();
     let rows=[0.48,0.25,0.02,-0.21,-0.44];
-    for (i,y) in rows.iter().enumerate(){let active=i==selected;if active{glColor3f(0.16,0.38,0.72);}else{glColor3f(0.09,0.11,0.15);}glBegin(GL_QUADS);glVertex3f(-0.60,*y-0.07,0);glVertex3f(0.60,*y-0.07,0);glVertex3f(0.60,*y+0.07,0);glVertex3f(-0.60,*y+0.07,0);glEnd();}
-    // value bars: VSync, sensitivity, invert X, invert Y, fullscreen indicator.
+    for (i,y) in rows.iter().enumerate(){let active=i==selected;if active{glColor3f(0.16,0.38,0.72);}else{glColor3f(0.09,0.11,0.15);}glBegin(GL_QUADS);glVertex3f(-0.60,*y-0.07,0.0);glVertex3f(0.60,*y-0.07,0.0);glVertex3f(0.60,*y+0.07,0.0);glVertex3f(-0.60,*y+0.07,0.0);glEnd();}
     let values=[if vsync{1.0}else{0.0},((sensitivity-0.001)/0.019).clamp(0.0,1.0),if invert_x{1.0}else{0.0},if invert_y{1.0}else{0.0},0.0];
     for (i,y) in rows.iter().enumerate(){let v=values[i];glColor3f(0.2,0.75,0.35);glBegin(GL_QUADS);glVertex3f(-0.05,*y-0.025,0.01);glVertex3f(-0.05+0.52*v,*y-0.025,0.01);glVertex3f(-0.05+0.52*v,*y+0.025,0.01);glVertex3f(-0.05,*y+0.025,0.01);glEnd();}
     gl::Enable(gl::DEPTH_TEST);
