@@ -27,6 +27,8 @@ extern "system" {
     fn glRotatef(angle: f32, x: f32, y: f32, z: f32);
 }
 
+type WglSwapInterval = unsafe extern "system" fn(interval: i32) -> i32;
+
 const GL_PROJECTION: u32 = 0x1701;
 const GL_MODELVIEW: u32 = 0x1700;
 const GL_QUADS: u32 = 0x0007;
@@ -38,6 +40,8 @@ pub struct Renderer {
     pub(crate) window: Window,
     hdc: winapi::shared::windef::HDC,
     hglrc: winapi::shared::windef::HGLRC,
+    wgl_swap_interval: Option<WglSwapInterval>,
+    vsync: bool,
 }
 
 impl Renderer {
@@ -71,13 +75,39 @@ impl Renderer {
                 if module.is_null() { return std::ptr::null(); }
                 winapi::um::libloaderapi::GetProcAddress(module, symbol.as_ptr()) as *const c_void
             });
+
+            let wgl_swap_interval = {
+                let name = CString::new("wglSwapIntervalEXT").unwrap();
+                let address = winapi::um::wingdi::wglGetProcAddress(name.as_ptr());
+                if address.is_null() {
+                    None
+                } else {
+                    Some(std::mem::transmute::<*const c_void, WglSwapInterval>(address as *const c_void))
+                }
+            };
+
             gl::Enable(gl::DEPTH_TEST);
             gl::DepthFunc(gl::LEQUAL);
             gl::ClearColor(0.38, 0.58, 0.82, 1.0);
             gl::Viewport(0, 0, 1280, 720);
-            log::info!("OpenGL context initialized");
-            Self { window, hdc, hglrc }
+
+            let renderer = Self { window, hdc, hglrc, wgl_swap_interval, vsync: true };
+            renderer.apply_vsync();
+            log::info!("OpenGL context initialized (VSync enabled)");
+            renderer
         }
+    }
+
+    fn apply_vsync(&self) {
+        if let Some(swap_interval) = self.wgl_swap_interval {
+            unsafe { swap_interval(if self.vsync { 1 } else { 0 }); }
+        }
+    }
+
+    pub fn toggle_vsync(&mut self) {
+        self.vsync = !self.vsync;
+        self.apply_vsync();
+        log::info!("VSync {}", if self.vsync { "enabled" } else { "disabled" });
     }
 
     pub fn toggle_fullscreen(&self) {
