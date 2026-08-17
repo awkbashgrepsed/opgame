@@ -66,7 +66,8 @@ unsafe fn draw_settings_menu(font:&FontRenderer,selected:usize,vsync:bool,sensit
     gl::Disable(gl::DEPTH_TEST); gl::Enable(gl::BLEND); gl::BlendFunc(gl::SRC_ALPHA,gl::ONE_MINUS_SRC_ALPHA);
     glColor4f(0.015,0.02,0.03,0.82);glBegin(GL_QUADS);glVertex3f(-1.0,-1.0,0.0);glVertex3f(1.0,-1.0,0.0);glVertex3f(1.0,1.0,0.0);glVertex3f(-1.0,1.0,0.0);glEnd();
     let labels=["VSync","Mouse Sensitivity","Invert X","Invert Y","Fullscreen","QUIT GAME"];
-    let values=[if vsync{"ON"}else{"OFF"},"","","","F11",""];
+    let sensitivity_text=format!("{:.3}",sensitivity);
+    let values=[if vsync{"ON"}else{"OFF"},sensitivity_text.as_str(),if invert_x{"ON"}else{"OFF"},if invert_y{"ON"}else{"OFF"},"F11",""];
     let rows=[0.36,0.17,-0.02,-0.21,-0.40,-0.62];
     font.draw_text("SETTINGS", -0.22, 0.68, [255,255,255,255]);
     for i in 0..labels.len(){
