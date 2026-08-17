@@ -2,6 +2,10 @@ use wgpu::*;
 use winit::window::Window;
 use crate::camera::Camera;
 use crate::player::Player;
+use crate::world::World;
+use crate::npc::NPCManager;
+use crate::vehicle::VehicleManager;
+use crate::ui::UIManager;
 
 pub struct Renderer {
     surface: wgpu::Surface<'static>,
@@ -66,7 +70,15 @@ impl Renderer {
         }
     }
 
-    pub async fn render(&self, camera: &Camera, player: &Player) {
+    pub async fn render(
+        &self,
+        camera: &Camera,
+        player: &Player,
+        world: &World,
+        npc_manager: &NPCManager,
+        vehicle_manager: &VehicleManager,
+        ui_manager: &UIManager,
+    ) {
         let frame = self
             .surface
             .get_current_texture()
@@ -97,10 +109,16 @@ impl Renderer {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
+
+            // Render world objects
             drop(rpass);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
         frame.present();
+
+        // Log render info
+        log::debug!("Rendered: {} NPCs, {} vehicles", npc_manager.get_npcs().len(), vehicle_manager.get_vehicles().len());
+        log::debug!("Player position: {:?}", player.position);
     }
 }
