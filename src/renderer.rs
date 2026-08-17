@@ -64,17 +64,25 @@ impl Drop for Renderer{fn drop(&mut self){unsafe{winapi::um::wingdi::wglMakeCurr
 unsafe fn draw_settings_menu(font:&FontRenderer,selected:usize,vsync:bool,sensitivity:f32,invert_x:bool,invert_y:bool){
     glMatrixMode(GL_PROJECTION);glLoadMatrixf(glam::Mat4::orthographic_rh_gl(-1.0,1.0,-1.0,1.0,-1.0,1.0).to_cols_array().as_ptr());glMatrixMode(GL_MODELVIEW);glLoadMatrixf(glam::Mat4::IDENTITY.to_cols_array().as_ptr());
     gl::Disable(gl::DEPTH_TEST); gl::Enable(gl::BLEND); gl::BlendFunc(gl::SRC_ALPHA,gl::ONE_MINUS_SRC_ALPHA);
-
-    // A simple translucent tint keeps the game visible underneath the menu.
     glColor4f(0.015,0.02,0.03,0.82);glBegin(GL_QUADS);glVertex3f(-1.0,-1.0,0.0);glVertex3f(1.0,-1.0,0.0);glVertex3f(1.0,1.0,0.0);glVertex3f(-1.0,1.0,0.0);glEnd();
-
     let labels=["VSync","Mouse Sensitivity","Invert X","Invert Y","Fullscreen","QUIT GAME"];
-    let values=[if vsync{"ON"}else{"OFF"},"","", "","F11",""];
+    let values=[if vsync{"ON"}else{"OFF"},"","","","F11",""];
     let rows=[0.36,0.17,-0.02,-0.21,-0.40,-0.62];
-
     font.draw_text("SETTINGS", -0.22, 0.68, [255,255,255,255]);
     for i in 0..labels.len(){
-        let y=rows[i];
-        let active=i==selected;
+        let y=rows[i]; let active=i==selected;
         let label_color=if active{[255,255,255,255]}else{[215,215,220,255]};
-        font.draw_text(if active {">"} else {" \
+        let marker=if active{">"}else{" "};
+        font.draw_text(marker,-0.62,y,label_color);
+        font.draw_text(labels[i],-0.54,y,label_color);
+        if !values[i].is_empty(){font.draw_text(values[i],0.34,y,[150,230,170,255]);}
+    }
+    font.draw_text("ENTER: select",-0.62,-0.84,[170,170,180,255]);
+    font.draw_text("ESC: close",0.25,-0.84,[170,170,180,255]);
+    gl::Disable(gl::BLEND); gl::Enable(gl::DEPTH_TEST);
+}
+
+unsafe fn draw_ground(){glColor3f(0.18,0.38,0.18);glBegin(GL_QUADS);glVertex3f(-500.0,0.0,-500.0);glVertex3f(500.0,0.0,-500.0);glVertex3f(500.0,0.0,500.0);glVertex3f(-500.0,0.0,500.0);glEnd();}
+unsafe fn draw_road(start:glam::Vec3,end:glam::Vec3,width:f32){let d=end-start;if d.length_squared()<f32::EPSILON{return;}let dir=d.normalize();let side=glam::Vec3::new(-dir.z,0.0,dir.x)*(width*0.5);glColor3f(0.12,0.12,0.13);glBegin(GL_QUADS);glVertex3f((start-side).x,0.01,(start-side).z);glVertex3f((start+side).x,0.01,(start+side).z);glVertex3f((end+side).x,0.01,(end+side).z);glVertex3f((end-side).x,0.01,(end-side).z);glEnd();glColor3f(0.85,0.78,0.18);glLineWidth(2.0);glBegin(GL_LINES);glVertex3f(start.x,0.025,start.z);glVertex3f(end.x,0.025,end.z);glEnd();}
+unsafe fn draw_building(position:glam::Vec3){let w=14.0;let d=14.0;let h=8.0+((position.x.abs()+position.z.abs())%3.0)*4.0;let x0=position.x-w*0.5;let x1=position.x+w*0.5;let z0=position.z-d*0.5;let z1=position.z+d*0.5;glColor3f(0.55,0.50,0.43);glBegin(GL_QUADS);glVertex3f(x0,0.0,z1);glVertex3f(x1,0.0,z1);glVertex3f(x1,h,z1);glVertex3f(x0,h,z1);glVertex3f(x1,0.0,z0);glVertex3f(x0,0.0,z0);glVertex3f(x0,h,z0);glVertex3f(x1,h,z0);glVertex3f(x0,0.0,z0);glVertex3f(x0,0.0,z1);glVertex3f(x0,h,z1);glVertex3f(x0,h,z0);glVertex3f(x1,0.0,z1);glVertex3f(x1,0.0,z0);glVertex3f(x1,h,z0);glVertex3f(x1,h,z1);glVertex3f(x0,h,z0);glVertex3f(x0,h,z1);glVertex3f(x1,h,z1);glVertex3f(x1,h,z0);glEnd();}
+unsafe fn draw_player(position:glam::Vec3,rotation:f32){let s=0.8;glPushMatrix();glTranslatef(position.x,position.y,position.z);glRotatef(rotation.to_degrees(),0.0,1.0,0.0);glColor3f(0.15,0.35,1.0);glBegin(GL_QUADS);glVertex3f(-s,0.0,s);glVertex3f(s,0.0,s);glVertex3f(s,s*2.25,s);glVertex3f(-s,s*2.25,s);glEnd();glColor3f(0.05,0.85,0.9);glBegin(GL_QUADS);glVertex3f(s,0.0,-s);glVertex3f(-s,0.0,-s);glVertex3f(-s,s*2.25,-s);glVertex3f(s,s*2.25,-s);glEnd();glColor3f(1.0,0.15,0.12);glBegin(GL_QUADS);glVertex3f(s,0.0,s);glVertex3f(s,0.0,-s);glVertex3f(s,s*2.25,-s);glVertex3f(s,s*2.25,s);glEnd();glColor3f(1.0,0.55,0.08);glBegin(GL_QUADS);glVertex3f(-s,0.0,-s);glVertex3f(-s,0.0,s);glVertex3f(-s,s*2.25,s);glVertex3f(-s,s*2.25,-s);glEnd();glColor3f(0.15,0.9,0.2);glBegin(GL_QUADS);glVertex3f(-s,s*2.25,s);glVertex3f(s,s*2.25,s);glVertex3f(s,s*2.25,-s);glVertex3f(-s,s*2.25,-s);glEnd();glColor3f(0.8,0.1,0.75);glBegin(GL_QUADS);glVertex3f(-s,0.0,-s);glVertex3f(s,0.0,-s);glVertex3f(s,0.0,s);glVertex3f(-s,0.0,s);glEnd();glPopMatrix();}
