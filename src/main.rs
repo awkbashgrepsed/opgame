@@ -11,6 +11,7 @@ mod physics;
 mod ui;
 mod mission;
 mod sound;
+mod font;
 
 use winit::{
     event::{Event, WindowEvent},
@@ -33,43 +34,13 @@ fn main() {
 
     let _ = event_loop.run(move |event, target| {
         match event {
-            Event::WindowEvent {
-                window_id: _,
-                event: WindowEvent::CloseRequested,
-            } => target.exit(),
-            Event::WindowEvent {
-                window_id: _,
-                event: WindowEvent::Resized(size),
-            } => {
-                game.resize(size.width, size.height);
-            }
-            Event::WindowEvent {
-                window_id: _,
-                event: WindowEvent::KeyboardInput { event, .. },
-            } => {
-                game.handle_key(event);
-            }
-            Event::WindowEvent {
-                window_id: _,
-                event: WindowEvent::CursorMoved { position, .. },
-            } => {
-                game.handle_cursor_moved(position.x, position.y);
-            }
-            Event::WindowEvent {
-                window_id: _,
-                event: WindowEvent::MouseInput { state, button, .. },
-            } => {
-                game.handle_mouse_click(state, button);
-            }
-            Event::WindowEvent {
-                window_id: _,
-                event: WindowEvent::MouseWheel { delta, .. },
-            } => {
-                game.handle_mouse_wheel(delta);
-            }
-            Event::AboutToWait => {
-                game.update_and_render();
-            }
+            Event::WindowEvent { window_id: _, event: WindowEvent::CloseRequested } => target.exit(),
+            Event::WindowEvent { window_id: _, event: WindowEvent::Resized(size) } => game.resize(size.width, size.height),
+            Event::WindowEvent { window_id: _, event: WindowEvent::KeyboardInput { event, .. } } => game.handle_key(event),
+            Event::WindowEvent { window_id: _, event: WindowEvent::CursorMoved { position, .. } } => game.handle_cursor_moved(position.x, position.y),
+            Event::WindowEvent { window_id: _, event: WindowEvent::MouseInput { state, button, .. } } => game.handle_mouse_click(state, button),
+            Event::WindowEvent { window_id: _, event: WindowEvent::MouseWheel { delta, .. } } => game.handle_mouse_wheel(delta),
+            Event::AboutToWait => game.update_and_render(),
             _ => {}
         }
         target.set_control_flow(ControlFlow::Poll);
