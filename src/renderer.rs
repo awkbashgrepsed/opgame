@@ -20,6 +20,10 @@ extern "system" {
     fn glEnd();
     fn glVertex3f(x: f32, y: f32, z: f32);
     fn glLineWidth(width: f32);
+    fn glPushMatrix();
+    fn glPopMatrix();
+    fn glTranslatef(x: f32, y: f32, z: f32);
+    fn glRotatef(angle: f32, x: f32, y: f32, z: f32);
 }
 
 const GL_PROJECTION: u32 = 0x1701;
@@ -135,7 +139,7 @@ impl Renderer {
             for object in world.objects.values() {
                 draw_building(object.position);
             }
-            draw_player(player.position);
+            draw_player(player.position, player.rotation);
 
             gl::Flush();
             winapi::um::wingdi::SwapBuffers(self.hdc);
@@ -218,18 +222,53 @@ unsafe fn draw_building(position: glam::Vec3) {
     glEnd();
 }
 
-unsafe fn draw_player(position: glam::Vec3) {
-    let x = position.x;
-    let z = position.z;
-    let y = position.y;
+unsafe fn draw_player(position: glam::Vec3, rotation: f32) {
     let size = 0.8;
 
-    glColor3f(0.2, 0.35, 0.9);
+    // The player cube is intentionally color-coded so its orientation is
+    // obvious while we are developing the movement/camera system:
+    //   +Z/front = blue, -Z/back = cyan
+    //   +X/right = red, -X/left = orange
+    //   +Y/top = green, -Y/bottom = magenta
+    glPushMatrix();
+    glTranslatef(position.x, position.y, position.z);
+    glRotatef(rotation.to_degrees(), 0.0, 1.0, 0.0);
+
+    // Front (+Z) - blue
+    glColor3f(0.15, 0.35, 1.0);
     glBegin(GL_QUADS);
-    glVertex3f(x-size, y, z-size); glVertex3f(x+size, y, z-size); glVertex3f(x+size, y+1.8, z-size); glVertex3f(x-size, y+1.8, z-size);
-    glVertex3f(x+size, y, z+size); glVertex3f(x-size, y, z+size); glVertex3f(x-size, y+1.8, z+size); glVertex3f(x+size, y+1.8, z+size);
-    glVertex3f(x-size, y, z+size); glVertex3f(x-size, y, z-size); glVertex3f(x-size, y+1.8, z-size); glVertex3f(x-size, y+1.8, z+size);
-    glVertex3f(x+size, y, z-size); glVertex3f(x+size, y, z+size); glVertex3f(x+size, y+1.8, z+size); glVertex3f(x+size, y+1.8, z-size);
-    glVertex3f(x-size, y+1.8, z-size); glVertex3f(x+size, y+1.8, z-size); glVertex3f(x+size, y+1.8, z+size); glVertex3f(x-size, y+1.8, z+size);
+    glVertex3f(-size, 0.0, size); glVertex3f(size, 0.0, size); glVertex3f(size, size * 2.25, size); glVertex3f(-size, size * 2.25, size);
     glEnd();
+
+    // Back (-Z) - cyan
+    glColor3f(0.05, 0.85, 0.9);
+    glBegin(GL_QUADS);
+    glVertex3f(size, 0.0, -size); glVertex3f(-size, 0.0, -size); glVertex3f(-size, size * 2.25, -size); glVertex3f(size, size * 2.25, -size);
+    glEnd();
+
+    // Right (+X) - red
+    glColor3f(1.0, 0.15, 0.12);
+    glBegin(GL_QUADS);
+    glVertex3f(size, 0.0, size); glVertex3f(size, 0.0, -size); glVertex3f(size, size * 2.25, -size); glVertex3f(size, size * 2.25, size);
+    glEnd();
+
+    // Left (-X) - orange
+    glColor3f(1.0, 0.55, 0.08);
+    glBegin(GL_QUADS);
+    glVertex3f(-size, 0.0, -size); glVertex3f(-size, 0.0, size); glVertex3f(-size, size * 2.25, size); glVertex3f(-size, size * 2.25, -size);
+    glEnd();
+
+    // Top (+Y) - green
+    glColor3f(0.15, 0.9, 0.2);
+    glBegin(GL_QUADS);
+    glVertex3f(-size, size * 2.25, size); glVertex3f(size, size * 2.25, size); glVertex3f(size, size * 2.25, -size); glVertex3f(-size, size * 2.25, -size);
+    glEnd();
+
+    // Bottom (-Y) - magenta
+    glColor3f(0.8, 0.1, 0.75);
+    glBegin(GL_QUADS);
+    glVertex3f(-size, 0.0, -size); glVertex3f(size, 0.0, -size); glVertex3f(size, 0.0, size); glVertex3f(-size, 0.0, size);
+    glEnd();
+
+    glPopMatrix();
 }
