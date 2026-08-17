@@ -43,12 +43,12 @@ impl Game {
         self.set_mouse_capture(!self.settings_menu); self.last_frame=Instant::now();
     }
     fn clear_input_state(&mut self){self.input_state=InputState{forward:false,backward:false,left:false,right:false,jump:false,sprint:false};}
-    fn change_setting(&mut self){match self.settings_selected{0=>self.renderer.toggle_vsync(),1=>self.camera.sensitivity=(self.camera.sensitivity+0.001).min(0.02),2=>self.camera.invert_x=!self.camera.invert_x,3=>self.camera.invert_y=!self.camera.invert_y,4=>self.renderer.toggle_fullscreen(),_=>{}}}
+    fn change_setting(&mut self){match self.settings_selected{0=>self.renderer.toggle_vsync(),1=>self.camera.sensitivity=(self.camera.sensitivity+0.001).min(0.02),2=>self.camera.invert_x=!self.camera.invert_x,3=>self.camera.invert_y=!self.camera.invert_y,4=>self.renderer.toggle_fullscreen(),5=>std::process::exit(0),_=>{}}}
     pub fn handle_key(&mut self,event:KeyEvent){
         let pressed=event.state==ElementState::Pressed;
         if let PhysicalKey::Code(code)=event.physical_key{
             if self.settings_menu{
-                if pressed{match code{KeyCode::Escape=>self.toggle_settings_menu(),KeyCode::ArrowUp=>self.settings_selected=self.settings_selected.checked_sub(1).unwrap_or(4),KeyCode::ArrowDown=>self.settings_selected=(self.settings_selected+1)%5,KeyCode::Enter|KeyCode::Space=>self.change_setting(),KeyCode::ArrowLeft if self.settings_selected==1=>self.camera.sensitivity=(self.camera.sensitivity-0.001).max(0.001),KeyCode::ArrowRight if self.settings_selected==1=>self.camera.sensitivity=(self.camera.sensitivity+0.001).min(0.02),_=>{}}} return;
+                if pressed{match code{KeyCode::Escape=>self.toggle_settings_menu(),KeyCode::ArrowUp=>self.settings_selected=self.settings_selected.checked_sub(1).unwrap_or(5),KeyCode::ArrowDown=>self.settings_selected=(self.settings_selected+1)%6,KeyCode::Enter|KeyCode::Space=>self.change_setting(),KeyCode::ArrowLeft if self.settings_selected==1=>self.camera.sensitivity=(self.camera.sensitivity-0.001).max(0.001),KeyCode::ArrowRight if self.settings_selected==1=>self.camera.sensitivity=(self.camera.sensitivity+0.001).min(0.02),_=>{}}} return;
             }
             match code{
                 KeyCode::Escape if pressed=>self.toggle_settings_menu(),
