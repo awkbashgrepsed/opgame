@@ -1,4 +1,7 @@
+use std::ffi::CString;
 use std::os::raw::{c_char, c_void};
+
+use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 use winit::window::Window;
 
 use crate::camera::Camera;
@@ -9,19 +12,54 @@ use crate::vehicle::VehicleManager;
 use crate::world::World;
 
 pub struct Renderer {
-    _window: Window,
+    window: Window,
+    hdc: winapi::shared::windef::HDC,
+    hglrc: winapi::um::wingdi::HGLRC,
 }
 
 impl Renderer {
     pub fn new(window: Window) -> Self {
-        // Load OpenGL function pointers.
-        gl::load_with(|symbol| {
-            let symbol = match std::ffi::CString::new(symbol) {
-                Ok(s) => s,
-                Err(_) => return std::ptr::null(),
+        let hwnd = match window.raw_window_handle() {
+            RawWindowHandle::Win32(handle) => handle.hwnd.get() as winapi::shared::windef::HWND,
+            _ => panic!("OPGAME currently requires a Windows Win32 window"),
+        };
+
+        unsafe {
+            let hdc = winapi::um::winuser::GetDC(hwnd);
+            if hdc.is_null() {
+                panic!("GetDC failed");
+            }
+
+            let mut pixel_format = winapi::um::wingdi::PIXELFORMATDESCRIPTOR {
+                nSize: std::mem::size_of::<winapi::um::wingdi::PIXELFORMATDESCRIPTOR>() as u16,
+                nVersion: 1,
+                dwFlags: winapi::um::wingdi::PFD_DRAW_TO_WINDOW
+                    | winapi::um::wingdi::PFD_SUPPORT_OPENGL
+                    | winapi::um::wingdi::PFD_DOUBLEBUFFER,
+                iPixelType: winapi::um::wingdi::PFD_TYPE_RGBA,
+                cColorBits: 32,
+                cDepthBits: 24,
+                cStencilBits: 8,
+                iLayerType: winapi::um::wingdi::PFD_MAIN_PLANE,
+                ..std::mem::zeroed()
             };
 
-            unsafe {
+            let format = winapi::um::wingdi::ChoosePixelFormat(hdc, &pixel_format);
+            if format == 0 || winapi::um::wingdi::SetPixelFormat(hdc, format, &pixel_format) == 0 {
+                panic!("Could not configure the OpenGL pixel format");
+            }
+
+            let hglrc = winapi::um::wingdi::wglCreateContext(hdc);
+            if hglrc.is_null() || winapi::um::wingdi::wglMakeCurrent(hdc, hglrc) == 0 {
+                panic!("Could not create the OpenGL context");
+            }
+
+            gl::load_with(|symbol| {
+                let symbol = match CString::new(symbol) {
+                    Ok(s) => s,
+                    Err(_) => return std::ptr::null(),
+                };
+
                 let address = winapi::um::wingdi::wglGetProcAddress(symbol.as_ptr());
                 if !address.is_null() {
                     return address as *const c_void;
@@ -30,17 +68,23 @@ impl Renderer {
                 let module = winapi::um::libloaderapi::GetModuleHandleA(
                     b"opengl32.dll\0".as_ptr() as *const c_char,
                 );
-
                 if module.is_null() {
                     return std::ptr::null();
                 }
 
                 winapi::um::libloaderapi::GetProcAddress(module, symbol.as_ptr()) as *const c_void
-            }
-        });
+            });
 
-        log::info!("OpenGL Renderer initialized");
-        Self { _window: window }
+            gl::Enable(gl::DEPTH_TEST);
+            gl::DepthFunc(gl::LEQUAL);
+            gl::ClearColor(0.38, 0.58, 0.82, 1.0);
+            gl::Viewport(0, 0, 1280, 720);
+
+            pixel_format.nSize = pixel_format.nSize;
+
+            log::info!("OpenGL context initialized");
+            Self { window, hdc, hglrc }
+        }
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -58,24 +102,122 @@ impl Renderer {
         vehicle_manager: &VehicleManager,
         _ui_manager: &UIManager,
     ) {
-        // Build the matrices now so the renderer has a real camera pipeline
-        // ready for the upcoming shader/mesh implementation.
-        let _view = camera.view_matrix();
-        let _projection = camera.projection_matrix();
-
         unsafe {
-            gl::ClearColor(0.08, 0.12, 0.18, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+
+            // Use OpenGL's fixed-function pipeline. It keeps this first visible
+            // prototype deliberately small while we build the game world.
+            gl::MatrixMode(gl::PROJECTION);
+            gl::LoadMatrixf(camera.projection_matrix().to_cols_array().as_ptr());
+            gl::MatrixMode(gl::MODELVIEW);
+            gl::LoadMatrixf(camera.view_matrix().to_cols_array().as_ptr());
+
+            draw_ground();
+
+            for road in &world.roads {
+                draw_road(road.start, road.end, road.width);
+            }
+
+            for object in world.objects.values() {
+                draw_building(object.position);
+            }
+
+            draw_player(player.position);
+
+            gl::Flush();
+            winapi::um::wingdi::SwapBuffers(self.hdc);
         }
 
         log::debug!(
-            "Rendered map: {} roads, {} objects; {} NPCs, {} vehicles",
+            "Rendered: {} roads, {} objects, {} NPCs, {} vehicles; player at {:?}",
             world.roads.len(),
             world.objects.len(),
             npc_manager.get_npcs().len(),
             vehicle_manager.get_vehicles().len(),
+            player.position
         );
-
-        log::debug!("Player position: {:?}", player.position);
     }
+}
+
+impl Drop for Renderer {
+    fn drop(&mut self) {
+        unsafe {
+            winapi::um::wingdi::wglMakeCurrent(std::ptr::null_mut(), std::ptr::null_mut());
+            winapi::um::wingdi::wglDeleteContext(self.hglrc);
+            if let RawWindowHandle::Win32(handle) = self.window.raw_window_handle() {
+                let hwnd = handle.hwnd.get() as winapi::shared::windef::HWND;
+                winapi::um::winuser::ReleaseDC(hwnd, self.hdc);
+            }
+        }
+    }
+}
+
+unsafe fn draw_ground() {
+    gl::Color3f(0.18, 0.38, 0.18);
+    gl::Begin(gl::QUADS);
+    gl::Vertex3f(-500.0, 0.0, -500.0);
+    gl::Vertex3f(500.0, 0.0, -500.0);
+    gl::Vertex3f(500.0, 0.0, 500.0);
+    gl::Vertex3f(-500.0, 0.0, 500.0);
+    gl::End();
+}
+
+unsafe fn draw_road(start: glam::Vec3, end: glam::Vec3, width: f32) {
+    let direction = (end - start).normalize();
+    let side = glam::Vec3::new(-direction.z, 0.0, direction.x) * (width * 0.5);
+
+    gl::Color3f(0.12, 0.12, 0.13);
+    gl::Begin(gl::QUADS);
+    gl::Vertex3f((start - side).x, 0.01, (start - side).z);
+    gl::Vertex3f((start + side).x, 0.01, (start + side).z);
+    gl::Vertex3f((end + side).x, 0.01, (end + side).z);
+    gl::Vertex3f((end - side).x, 0.01, (end - side).z);
+    gl::End();
+
+    gl::Color3f(0.85, 0.78, 0.18);
+    gl::Begin(gl::LINES);
+    gl::LineWidth(2.0);
+    gl::Vertex3f(start.x, 0.025, start.z);
+    gl::Vertex3f(end.x, 0.025, end.z);
+    gl::End();
+}
+
+unsafe fn draw_building(position: glam::Vec3) {
+    let width = 14.0;
+    let depth = 14.0;
+    let height = 8.0 + ((position.x.abs() + position.z.abs()) % 3.0) * 4.0;
+    let x0 = position.x - width * 0.5;
+    let x1 = position.x + width * 0.5;
+    let z0 = position.z - depth * 0.5;
+    let z1 = position.z + depth * 0.5;
+    let y0 = 0.0;
+    let y1 = height;
+
+    gl::Color3f(0.55, 0.50, 0.43);
+    gl::Begin(gl::QUADS);
+    // front/back
+    gl::Vertex3f(x0, y0, z1); gl::Vertex3f(x1, y0, z1); gl::Vertex3f(x1, y1, z1); gl::Vertex3f(x0, y1, z1);
+    gl::Vertex3f(x1, y0, z0); gl::Vertex3f(x0, y0, z0); gl::Vertex3f(x0, y1, z0); gl::Vertex3f(x1, y1, z0);
+    // left/right
+    gl::Vertex3f(x0, y0, z0); gl::Vertex3f(x0, y0, z1); gl::Vertex3f(x0, y1, z1); gl::Vertex3f(x0, y1, z0);
+    gl::Vertex3f(x1, y0, z1); gl::Vertex3f(x1, y0, z0); gl::Vertex3f(x1, y1, z0); gl::Vertex3f(x1, y1, z1);
+    // roof/floor
+    gl::Vertex3f(x0, y1, z0); gl::Vertex3f(x0, y1, z1); gl::Vertex3f(x1, y1, z1); gl::Vertex3f(x1, y1, z0);
+    gl::End();
+}
+
+unsafe fn draw_player(position: glam::Vec3) {
+    let x = position.x;
+    let z = position.z;
+    let y = position.y;
+    let size = 0.8;
+
+    gl::Color3f(0.2, 0.35, 0.9);
+    gl::Begin(gl::QUADS);
+    gl::Vertex3f(x-size, y, z-size); gl::Vertex3f(x+size, y, z-size); gl::Vertex3f(x+size, y+1.8, z-size); gl::Vertex3f(x-size, y+1.8, z-size);
+    gl::Vertex3f(x+size, y, z+size); gl::Vertex3f(x-size, y, z+size); gl::Vertex3f(x-size, y+1.8, z+size); gl::Vertex3f(x+size, y+1.8, z+size);
+    gl::Vertex3f(x-size, y, z+size); gl::Vertex3f(x-size, y, z-size); gl::Vertex3f(x-size, y+1.8, z-size); gl::Vertex3f(x-size, y+1.8, z+size);
+    gl::Vertex3f(x+size, y, z-size); gl::Vertex3f(x+size, y, z+size); gl::Vertex3f(x+size, y+1.8, z+size); gl::Vertex3f(x+size, y+1.8, z-size);
+    gl::Vertex3f(x-size, y+1.8, z-size); gl::Vertex3f(x+size, y+1.8, z-size); gl::Vertex3f(x+size, y+1.8, z+size); gl::Vertex3f(x-size, y+1.8, z+size);
+    gl::End();
 }
