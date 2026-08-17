@@ -4,6 +4,7 @@ use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 use winit::dpi::PhysicalPosition;
 use winit::window::{Fullscreen, Window};
 use crate::camera::Camera;
+use crate::font::FontRenderer;
 use crate::npc::NPCManager;
 use crate::player::Player;
 use crate::ui::UIManager;
@@ -21,7 +22,7 @@ type WglSwapInterval = unsafe extern "system" fn(interval:i32)->i32;
 const GL_PROJECTION:u32=0x1701; const GL_MODELVIEW:u32=0x1700; const GL_QUADS:u32=0x0007; const GL_LINES:u32=0x0001;
 type Hwnd=winapi::shared::windef::HWND;
 
-pub struct Renderer { pub(crate) window:Window, hdc:winapi::shared::windef::HDC, hglrc:winapi::shared::windef::HGLRC, wgl_swap_interval:Option<WglSwapInterval>, vsync:bool }
+pub struct Renderer { pub(crate) window:Window, hdc:winapi::shared::windef::HDC, hglrc:winapi::shared::windef::HGLRC, wgl_swap_interval:Option<WglSwapInterval>, vsync:bool, font:FontRenderer }
 
 impl Renderer {
     pub fn new(window:Window)->Self {
@@ -34,7 +35,8 @@ impl Renderer {
             gl::load_with(|symbol|{let symbol=match CString::new(symbol){Ok(s)=>s,Err(_)=>return std::ptr::null()};let address=winapi::um::wingdi::wglGetProcAddress(symbol.as_ptr());if !address.is_null(){return address as *const c_void;}let module=winapi::um::libloaderapi::GetModuleHandleA(b"opengl32.dll\0".as_ptr() as *const c_char);if module.is_null(){return std::ptr::null();}winapi::um::libloaderapi::GetProcAddress(module,symbol.as_ptr()) as *const c_void});
             let wgl_swap_interval={let name=CString::new("wglSwapIntervalEXT").unwrap();let address=winapi::um::wingdi::wglGetProcAddress(name.as_ptr());if address.is_null(){None}else{Some(std::mem::transmute::<*const c_void,WglSwapInterval>(address as *const c_void))}};
             gl::Enable(gl::DEPTH_TEST); gl::DepthFunc(gl::LEQUAL); gl::ClearColor(0.38,0.58,0.82,1.0); gl::Viewport(0,0,1280,720);
-            let renderer=Self{window,hdc,hglrc,wgl_swap_interval,vsync:true}; renderer.apply_vsync(); renderer
+            let font=FontRenderer::new(26.0).unwrap_or_else(|e|panic!("Font initialization failed: {}",e));
+            let renderer=Self{window,hdc,hglrc,wgl_swap_interval,vsync:true,font}; renderer.apply_vsync(); renderer
         }
     }
     fn apply_vsync(&self){if let Some(f)=self.wgl_swap_interval{unsafe{f(if self.vsync{1}else{0});}}}
@@ -50,7 +52,7 @@ impl Renderer {
             gl::Clear(gl::COLOR_BUFFER_BIT|gl::DEPTH_BUFFER_BIT);
             let projection=camera.projection_matrix();let view=camera.view_matrix();glMatrixMode(GL_PROJECTION);glLoadMatrixf(projection.to_cols_array().as_ptr());glMatrixMode(GL_MODELVIEW);glLoadMatrixf(view.to_cols_array().as_ptr());
             draw_ground();for road in &world.roads{draw_road(road.start,road.end,road.width);}for object in world.objects.values(){draw_building(object.position);}draw_player(player.position,player.rotation);
-            if settings_menu { draw_settings_menu(selected,self.vsync,sensitivity,invert_x,invert_y); }
+            if settings_menu { draw_settings_menu(&self.font,selected,self.vsync,sensitivity,invert_x,invert_y); }
             gl::Flush();winapi::um::wingdi::SwapBuffers(self.hdc);
         }
         log::debug!("Rendered: {} roads, {} objects, {} NPCs, {} vehicles; player at {:?}",world.roads.len(),world.objects.len(),npc_manager.get_npcs().len(),vehicle_manager.get_vehicles().len(),player.position);
@@ -59,15 +61,25 @@ impl Renderer {
 
 impl Drop for Renderer{fn drop(&mut self){unsafe{winapi::um::wingdi::wglMakeCurrent(std::ptr::null_mut(),std::ptr::null_mut());winapi::um::wingdi::wglDeleteContext(self.hglrc);if let RawWindowHandle::Win32(handle)=self.window.raw_window_handle(){winapi::um::winuser::ReleaseDC(handle.hwnd as Hwnd,self.hdc);}}}}
 
-unsafe fn draw_settings_menu(selected:usize,vsync:bool,sensitivity:f32,invert_x:bool,invert_y:bool){
+unsafe fn draw_settings_menu(font:&FontRenderer,selected:usize,vsync:bool,sensitivity:f32,invert_x:bool,invert_y:bool){
     glMatrixMode(GL_PROJECTION);glLoadMatrixf(glam::Mat4::orthographic_rh_gl(-1.0,1.0,-1.0,1.0,-1.0,1.0).to_cols_array().as_ptr());glMatrixMode(GL_MODELVIEW);glLoadMatrixf(glam::Mat4::IDENTITY.to_cols_array().as_ptr());
-    gl::Disable(gl::DEPTH_TEST);
+    gl::Disable(gl::DEPTH_TEST); gl::Enable(gl::BLEND); gl::BlendFunc(gl::SRC_ALPHA,gl::ONE_MINUS_SRC_ALPHA);
     glColor3f(0.04,0.05,0.07);glBegin(GL_QUADS);glVertex3f(-0.72,-0.88,0.0);glVertex3f(0.72,-0.88,0.0);glVertex3f(0.72,0.88,0.0);glVertex3f(-0.72,0.88,0.0);glEnd();
     let rows=[0.48,0.25,0.02,-0.21,-0.44];
     for (i,y) in rows.iter().enumerate(){let active=i==selected;if active{glColor3f(0.16,0.38,0.72);}else{glColor3f(0.09,0.11,0.15);}glBegin(GL_QUADS);glVertex3f(-0.60,*y-0.07,0.0);glVertex3f(0.60,*y-0.07,0.0);glVertex3f(0.60,*y+0.07,0.0);glVertex3f(-0.60,*y+0.07,0.0);glEnd();}
-    let values=[if vsync{1.0}else{0.0},((sensitivity-0.001)/0.019).clamp(0.0,1.0),if invert_x{1.0}else{0.0},if invert_y{1.0}else{0.0},0.0];
-    for (i,y) in rows.iter().enumerate(){let v=values[i];glColor3f(0.2,0.75,0.35);glBegin(GL_QUADS);glVertex3f(-0.05,*y-0.025,0.01);glVertex3f(-0.05+0.52*v,*y-0.025,0.01);glVertex3f(-0.05+0.52*v,*y+0.025,0.01);glVertex3f(-0.05,*y+0.025,0.01);glEnd();}
-    gl::Enable(gl::DEPTH_TEST);
+    font.draw_text("SETTINGS", -0.28, 0.72, [240,240,245,255]);
+    font.draw_text("VSync", -0.54, 0.46, [235,235,240,255]);
+    font.draw_text(if vsync {"ON"} else {"OFF"}, 0.40, 0.46, [120,230,150,255]);
+    font.draw_text("Mouse Sensitivity", -0.54, 0.23, [235,235,240,255]);
+    font.draw_text(&format!("{:.3}", sensitivity), 0.40, 0.23, [120,230,150,255]);
+    font.draw_text("Invert X", -0.54, 0.00, [235,235,240,255]);
+    font.draw_text(if invert_x {"ON"} else {"OFF"}, 0.40, 0.00, [120,230,150,255]);
+    font.draw_text("Invert Y", -0.54, -0.23, [235,235,240,255]);
+    font.draw_text(if invert_y {"ON"} else {"OFF"}, 0.40, -0.23, [120,230,150,255]);
+    font.draw_text("Fullscreen", -0.54, -0.46, [235,235,240,255]);
+    font.draw_text("F11", 0.40, -0.46, [120,230,150,255]);
+    font.draw_text("ESC: close", -0.54, -0.70, [180,180,190,255]);
+    gl::Disable(gl::BLEND); gl::Enable(gl::DEPTH_TEST);
 }
 
 unsafe fn draw_ground(){glColor3f(0.18,0.38,0.18);glBegin(GL_QUADS);glVertex3f(-500.0,0.0,-500.0);glVertex3f(500.0,0.0,-500.0);glVertex3f(500.0,0.0,500.0);glVertex3f(-500.0,0.0,500.0);glEnd();}
