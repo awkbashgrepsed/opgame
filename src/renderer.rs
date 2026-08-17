@@ -1,7 +1,5 @@
-use glium::{Display, Surface};
-use glium::backend::Facade;
+use std::ffi::CString;
 use winit::window::Window;
-use winit::event_loop::EventLoop;
 use crate::camera::Camera;
 use crate::player::Player;
 use crate::world::World;
@@ -10,55 +8,22 @@ use crate::vehicle::VehicleManager;
 use crate::ui::UIManager;
 
 pub struct Renderer {
-    display: glium::Display<glium::glutin::surface::WindowSurface>,
+    _window: Window,
 }
 
 impl Renderer {
-    pub fn new(window: Window, event_loop: &EventLoop<()>) -> Self {
-        use glium::glutin::config::ConfigTemplateBuilder;
-        use glium::glutin::display::GlDisplay;
-        use glium::glutin::prelude::*;
-        use glium::glutin::surface::WindowSurface;
-
-        let (width, height) = {
-            let size = window.inner_size();
-            (size.width, size.height)
-        };
-
-        let config_template = ConfigTemplateBuilder::new()
-            .with_transparency(false)
-            .build();
-
-        let (window, gl_config) = unsafe {
-            glium::glutin::display::Display::new()
-                .unwrap()
-                .find_configurations(config_template)
-                .unwrap()
-                .next()
-                .unwrap()
-        };
-
-        let attrs = glium::glutin::surface::WindowAttributes::default()
-            .with_inner_size(glium::glutin::dpi::LogicalSize::new(width as f64, height as f64));
-
-        let surface_attrs = glium::glutin::surface::SurfaceAttributesBuilder::<WindowSurface>::new()
-            .build(window.raw_window_handle(), std::num::NonZeroU32::new(width).unwrap(), std::num::NonZeroU32::new(height).unwrap());
-
-        // Simple fallback: just create display with default settings
-        let display = unsafe {
-            glium::Display::new(
-                glium::glutin::display::Display::new().unwrap(),
-                Default::default(),
-            ).expect("Failed to create OpenGL context")
-        };
-
-        log::info!("OpenGL context created successfully");
-
-        Self { display }
+    pub fn new(window: Window) -> Self {
+        log::info!("OpenGL Renderer initialized");
+        
+        Self {
+            _window: window,
+        }
     }
 
-    pub fn resize(&mut self, _width: u32, _height: u32) {
-        // Glium handles resizing automatically
+    pub fn resize(&mut self, width: u32, height: u32) {
+        unsafe {
+            gl::Viewport(0, 0, width as i32, height as i32);
+        }
     }
 
     pub fn render(
@@ -70,20 +35,30 @@ impl Renderer {
         vehicle_manager: &VehicleManager,
         _ui_manager: &UIManager,
     ) {
-        let mut frame = self.display.draw();
-        frame.clear_color(0.1, 0.2, 0.3, 1.0);
+        unsafe {
+            // Clear screen
+            gl::ClearColor(0.1, 0.2, 0.3, 1.0);
+            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
-        // Render simple debug grid
-        self.render_grid(&mut frame);
+            // Simple rendering placeholder
+            gl::MatrixMode(gl::PROJECTION);
+            gl::LoadIdentity();
+            gl::Ortho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0);
+            gl::MatrixMode(gl::MODELVIEW);
+            gl::LoadIdentity();
 
-        frame.finish().expect("Failed to finish frame");
+            // Draw a simple quad (placeholder for game world)
+            gl::Begin(gl::QUADS);
+            gl::Color3f(0.5, 0.5, 0.5);
+            gl::Vertex3f(-0.5, -0.5, 0.0);
+            gl::Vertex3f(0.5, -0.5, 0.0);
+            gl::Vertex3f(0.5, 0.5, 0.0);
+            gl::Vertex3f(-0.5, 0.5, 0.0);
+            gl::End();
+        }
 
         // Log render info
         log::debug!("Rendered: {} NPCs, {} vehicles", npc_manager.get_npcs().len(), vehicle_manager.get_vehicles().len());
         log::debug!("Player position: {:?}", player.position);
-    }
-
-    fn render_grid(&self, _frame: &mut glium::Frame) {
-        // TODO: Render a simple grid using OpenGL 2.1 immediate mode
     }
 }

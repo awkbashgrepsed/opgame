@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 winit = "0.29"
-glium = "0.33"
 pollster = "0.3"
 bytemuck = { version = "1.14", features = ["derive"] }
 glam = "0.24"
@@ -15,3 +14,4 @@ log = "0.4"
 env_logger = "0.11"
 rand = "0.8"
 uuid = { version = "1.0", features = ["v4", "serde"] }
+gl = "0.14"
