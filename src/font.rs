@@ -1,6 +1,17 @@
 use fontdue::Font;
 use std::fs;
 use std::path::Path;
+use std::os::raw::c_void;
+
+#[link(name = "opengl32")]
+extern "system" {
+    fn glRasterPos2f(x: f32, y: f32);
+    fn glPixelZoom(xfactor: f32, yfactor: f32);
+    fn glDrawPixels(width: i32, height: i32, format: u32, type_: u32, pixels: *const c_void);
+}
+
+const GL_RGBA: u32 = 0x1908;
+const GL_UNSIGNED_BYTE: u32 = 0x1401;
 
 pub struct FontRenderer {
     font: Font,
@@ -33,9 +44,11 @@ impl FontRenderer {
             height = height.max((metrics.height as i32 + self.size as i32 + 4) as usize);
             glyphs.push((metrics, bitmap));
         }
+
         let mut pixels = vec![0u8; width * height * 4];
         let baseline = self.size.ceil() as i32;
         let mut pen_x = 0i32;
+
         for (metrics, bitmap) in glyphs {
             let gx = pen_x + metrics.xmin;
             let gy = baseline - metrics.ymin - metrics.height as i32;
@@ -55,11 +68,18 @@ impl FontRenderer {
             }
             pen_x += metrics.advance_width.round() as i32;
         }
+
         unsafe {
-            gl::RasterPos2f(x, y);
-            gl::PixelZoom(1.0, -1.0);
-            gl::DrawPixels(width as i32, height as i32, gl::RGBA, gl::UNSIGNED_BYTE, pixels.as_ptr() as *const _);
-            gl::PixelZoom(1.0, 1.0);
+            glRasterPos2f(x, y);
+            glPixelZoom(1.0, -1.0);
+            glDrawPixels(
+                width as i32,
+                height as i32,
+                GL_RGBA,
+                GL_UNSIGNED_BYTE,
+                pixels.as_ptr() as *const c_void,
+            );
+            glPixelZoom(1.0, 1.0);
         }
     }
 }
