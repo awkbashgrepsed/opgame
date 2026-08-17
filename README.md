@@ -2,12 +2,14 @@
 
 A bare-minimum game framework inspired by Grand Theft Auto: San Andreas, built from scratch in Rust.
 
-## Features (Minimal Base)
-- **Windowed application** with resizable window
-- **Basic camera system** with third-person view following the player
-- **Player entity** with health, position, and rotation
-- **Input handling** (WASD for movement, Space for jump, ESC to exit)
-- **Renderer** using WGPU for cross-platform graphics
+## Current Features
+- **Resizable game window**
+- **Third-person orbit camera** with mouse look and scroll-wheel zoom
+- **Player movement** relative to camera heading
+- **Procedural starter map layout** with roads and city blocks
+- **Player entity** with health, weapons, and movement physics
+- **NPC, vehicle, combat, mission, UI, and audio systems** ready to be expanded
+- **OpenGL renderer foundation**
 
 ## Building
 
@@ -17,8 +19,15 @@ cargo run --release
 ```
 
 ## Controls
-- **W/A/S/D** - Move forward/left/backward/right
-- **Space** - Jump (placeholder)
+- **W/A/S/D** - Move relative to camera
+- **Mouse** - Orbit camera
+- **Mouse wheel** - Zoom in/out
+- **Space** - Jump placeholder
+- **Shift** - Sprint
+- **Left mouse / F** - Fire weapon
+- **R** - Reload
+- **1/2/3** - Select weapon
+- **P** - Pause
 - **ESC** - Exit game
 
 ## Architecture
@@ -28,24 +37,26 @@ The project is organized as follows:
 - `main.rs` - Entry point and event loop
 - `game.rs` - Main game logic and state management
 - `player.rs` - Player entity and stats
-- `camera.rs` - Camera system with view/projection matrices
-- `entity.rs` - Base entity trait for game objects
-- `renderer.rs` - WGPU rendering backend
+- `camera.rs` - Third-person orbit camera with view/projection matrices
+- `world.rs` - Procedural map, roads, buildings, time, and weather
+- `entity.rs` - Base entity trait and world objects
+- `renderer.rs` - OpenGL rendering backend
+- `npc.rs` - NPC and AI state management
+- `vehicle.rs` - Vehicle simulation
+- `combat.rs` - Combat system
+- `physics.rs` - Physics helpers
+- `mission.rs` - Mission system
+- `ui.rs` - HUD/UI state
+- `sound.rs` - Audio system foundation
 
 ## Next Steps
 
-You can extend this with:
-- **Map/World** - Load and render 3D maps
-- **NPCs** - AI characters and interactions
-- **Vehicles** - Car physics and driving
-- **Combat** - Weapons, damage, and fighting
-- **Missions** - Quest system
-- **UI** - HUD, menus, dialog
-- **Audio** - Sound effects and music
+The next major rendering milestone is to add a real OpenGL context, shaders, vertex buffers, and draw the procedural roads/buildings as 3D geometry. After that, the starter map can grow into a streamed city map with models, textures, collision, NPCs, and vehicles.
 
 ## Dependencies
 
 - **winit** - Window management and events
-- **wgpu** - Graphics API abstraction
+- **glutin/glutin-winit** - OpenGL context support
+- **gl** - OpenGL bindings
 - **glam** - Math library (vectors, matrices)
 - **serde** - Serialization (for saving/loading)
