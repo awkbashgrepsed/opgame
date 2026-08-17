@@ -13,7 +13,7 @@ use crate::world::World;
 
 #[link(name = "opengl32")]
 extern "system" {
-    fn glMatrixMode(mode:u32); fn glLoadMatrixf(matrix:*const f32); fn glColor3f(red:f32,green:f32,blue:f32);
+    fn glMatrixMode(mode:u32); fn glLoadMatrixf(matrix:*const f32); fn glColor3f(red:f32,green:f32,blue:f32); fn glColor4f(red:f32,green:f32,blue:f32,alpha:f32);
     fn glBegin(mode:u32); fn glEnd(); fn glVertex3f(x:f32,y:f32,z:f32); fn glLineWidth(width:f32);
     fn glPushMatrix(); fn glPopMatrix(); fn glTranslatef(x:f32,y:f32,z:f32); fn glRotatef(angle:f32,x:f32,y:f32,z:f32);
 }
@@ -64,25 +64,17 @@ impl Drop for Renderer{fn drop(&mut self){unsafe{winapi::um::wingdi::wglMakeCurr
 unsafe fn draw_settings_menu(font:&FontRenderer,selected:usize,vsync:bool,sensitivity:f32,invert_x:bool,invert_y:bool){
     glMatrixMode(GL_PROJECTION);glLoadMatrixf(glam::Mat4::orthographic_rh_gl(-1.0,1.0,-1.0,1.0,-1.0,1.0).to_cols_array().as_ptr());glMatrixMode(GL_MODELVIEW);glLoadMatrixf(glam::Mat4::IDENTITY.to_cols_array().as_ptr());
     gl::Disable(gl::DEPTH_TEST); gl::Enable(gl::BLEND); gl::BlendFunc(gl::SRC_ALPHA,gl::ONE_MINUS_SRC_ALPHA);
-    glColor3f(0.04,0.05,0.07);glBegin(GL_QUADS);glVertex3f(-0.72,-0.88,0.0);glVertex3f(0.72,-0.88,0.0);glVertex3f(0.72,0.88,0.0);glVertex3f(-0.72,0.88,0.0);glEnd();
-    let rows=[0.48,0.25,0.02,-0.21,-0.44];
-    for (i,y) in rows.iter().enumerate(){let active=i==selected;if active{glColor3f(0.16,0.38,0.72);}else{glColor3f(0.09,0.11,0.15);}glBegin(GL_QUADS);glVertex3f(-0.60,*y-0.07,0.0);glVertex3f(0.60,*y-0.07,0.0);glVertex3f(0.60,*y+0.07,0.0);glVertex3f(-0.60,*y+0.07,0.0);glEnd();}
-    font.draw_text("SETTINGS", -0.28, 0.72, [240,240,245,255]);
-    font.draw_text("VSync", -0.54, 0.46, [235,235,240,255]);
-    font.draw_text(if vsync {"ON"} else {"OFF"}, 0.40, 0.46, [120,230,150,255]);
-    font.draw_text("Mouse Sensitivity", -0.54, 0.23, [235,235,240,255]);
-    font.draw_text(&format!("{:.3}", sensitivity), 0.40, 0.23, [120,230,150,255]);
-    font.draw_text("Invert X", -0.54, 0.00, [235,235,240,255]);
-    font.draw_text(if invert_x {"ON"} else {"OFF"}, 0.40, 0.00, [120,230,150,255]);
-    font.draw_text("Invert Y", -0.54, -0.23, [235,235,240,255]);
-    font.draw_text(if invert_y {"ON"} else {"OFF"}, 0.40, -0.23, [120,230,150,255]);
-    font.draw_text("Fullscreen", -0.54, -0.46, [235,235,240,255]);
-    font.draw_text("F11", 0.40, -0.46, [120,230,150,255]);
-    font.draw_text("ESC: close", -0.54, -0.70, [180,180,190,255]);
-    gl::Disable(gl::BLEND); gl::Enable(gl::DEPTH_TEST);
-}
 
-unsafe fn draw_ground(){glColor3f(0.18,0.38,0.18);glBegin(GL_QUADS);glVertex3f(-500.0,0.0,-500.0);glVertex3f(500.0,0.0,-500.0);glVertex3f(500.0,0.0,500.0);glVertex3f(-500.0,0.0,500.0);glEnd();}
-unsafe fn draw_road(start:glam::Vec3,end:glam::Vec3,width:f32){let d=end-start;if d.length_squared()<f32::EPSILON{return;}let dir=d.normalize();let side=glam::Vec3::new(-dir.z,0.0,dir.x)*(width*0.5);glColor3f(0.12,0.12,0.13);glBegin(GL_QUADS);glVertex3f((start-side).x,0.01,(start-side).z);glVertex3f((start+side).x,0.01,(start+side).z);glVertex3f((end+side).x,0.01,(end+side).z);glVertex3f((end-side).x,0.01,(end-side).z);glEnd();glColor3f(0.85,0.78,0.18);glLineWidth(2.0);glBegin(GL_LINES);glVertex3f(start.x,0.025,start.z);glVertex3f(end.x,0.025,end.z);glEnd();}
-unsafe fn draw_building(position:glam::Vec3){let w=14.0;let d=14.0;let h=8.0+((position.x.abs()+position.z.abs())%3.0)*4.0;let x0=position.x-w*0.5;let x1=position.x+w*0.5;let z0=position.z-d*0.5;let z1=position.z+d*0.5;glColor3f(0.55,0.50,0.43);glBegin(GL_QUADS);glVertex3f(x0,0.0,z1);glVertex3f(x1,0.0,z1);glVertex3f(x1,h,z1);glVertex3f(x0,h,z1);glVertex3f(x1,0.0,z0);glVertex3f(x0,0.0,z0);glVertex3f(x0,h,z0);glVertex3f(x1,h,z0);glVertex3f(x0,0.0,z0);glVertex3f(x0,0.0,z1);glVertex3f(x0,h,z1);glVertex3f(x0,h,z0);glVertex3f(x1,0.0,z1);glVertex3f(x1,0.0,z0);glVertex3f(x1,h,z0);glVertex3f(x1,h,z1);glVertex3f(x0,h,z0);glVertex3f(x0,h,z1);glVertex3f(x1,h,z1);glVertex3f(x1,h,z0);glEnd();}
-unsafe fn draw_player(position:glam::Vec3,rotation:f32){let s=0.8;glPushMatrix();glTranslatef(position.x,position.y,position.z);glRotatef(rotation.to_degrees(),0.0,1.0,0.0);glColor3f(0.15,0.35,1.0);glBegin(GL_QUADS);glVertex3f(-s,0.0,s);glVertex3f(s,0.0,s);glVertex3f(s,s*2.25,s);glVertex3f(-s,s*2.25,s);glEnd();glColor3f(0.05,0.85,0.9);glBegin(GL_QUADS);glVertex3f(s,0.0,-s);glVertex3f(-s,0.0,-s);glVertex3f(-s,s*2.25,-s);glVertex3f(s,s*2.25,-s);glEnd();glColor3f(1.0,0.15,0.12);glBegin(GL_QUADS);glVertex3f(s,0.0,s);glVertex3f(s,0.0,-s);glVertex3f(s,s*2.25,-s);glVertex3f(s,s*2.25,s);glEnd();glColor3f(1.0,0.55,0.08);glBegin(GL_QUADS);glVertex3f(-s,0.0,-s);glVertex3f(-s,0.0,s);glVertex3f(-s,s*2.25,s);glVertex3f(-s,s*2.25,-s);glEnd();glColor3f(0.15,0.9,0.2);glBegin(GL_QUADS);glVertex3f(-s,s*2.25,s);glVertex3f(s,s*2.25,s);glVertex3f(s,s*2.25,-s);glVertex3f(-s,s*2.25,-s);glEnd();glColor3f(0.8,0.1,0.75);glBegin(GL_QUADS);glVertex3f(-s,0.0,-s);glVertex3f(s,0.0,-s);glVertex3f(s,0.0,s);glVertex3f(-s,0.0,s);glEnd();glPopMatrix();}
+    // A simple translucent tint keeps the game visible underneath the menu.
+    glColor4f(0.015,0.02,0.03,0.82);glBegin(GL_QUADS);glVertex3f(-1.0,-1.0,0.0);glVertex3f(1.0,-1.0,0.0);glVertex3f(1.0,1.0,0.0);glVertex3f(-1.0,1.0,0.0);glEnd();
+
+    let labels=["VSync","Mouse Sensitivity","Invert X","Invert Y","Fullscreen","QUIT GAME"];
+    let values=[if vsync{"ON"}else{"OFF"},"","", "","F11",""];
+    let rows=[0.36,0.17,-0.02,-0.21,-0.40,-0.62];
+
+    font.draw_text("SETTINGS", -0.22, 0.68, [255,255,255,255]);
+    for i in 0..labels.len(){
+        let y=rows[i];
+        let active=i==selected;
+        let label_color=if active{[255,255,255,255]}else{[215,215,220,255]};
+        font.draw_text(if active {">"} else {" \
