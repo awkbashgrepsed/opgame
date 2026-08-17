@@ -106,6 +106,7 @@ impl Game {
                 KeyCode::Space => self.input_state.jump = pressed,
                 KeyCode::ShiftLeft => self.input_state.sprint = pressed,
                 KeyCode::KeyP if pressed => self.paused = !self.paused,
+                KeyCode::F9 if pressed => self.renderer.toggle_vsync(),
                 KeyCode::F11 if pressed => self.renderer.toggle_fullscreen(),
                 KeyCode::KeyF if pressed => { self.player.fire_weapon(); }
                 KeyCode::KeyR if pressed => { self.player.reload_weapon(); }
@@ -119,18 +120,11 @@ impl Game {
     }
 
     pub fn handle_cursor_moved(&mut self, x: f64, y: f64) {
-        if !self.mouse_captured {
-            return;
-        }
-
+        if !self.mouse_captured { return; }
         let (center_x, center_y) = self.renderer.window_center();
         let dx = x - center_x;
         let dy = y - center_y;
-
-        if dx.abs() < 0.5 && dy.abs() < 0.5 {
-            return;
-        }
-
+        if dx.abs() < 0.5 && dy.abs() < 0.5 { return; }
         let sensitivity = 0.004;
         self.camera.rotate(dx as f32 * sensitivity, dy as f32 * sensitivity);
         self.renderer.center_cursor();
@@ -161,54 +155,35 @@ impl Game {
     fn set_mouse_capture(&mut self, captured: bool) {
         self.mouse_captured = captured;
         self.renderer.set_cursor_visible(!captured);
-        if captured {
-            self.renderer.center_cursor();
-        }
+        if captured { self.renderer.center_cursor(); }
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
         self.renderer.resize(width, height);
-        if height != 0 {
-            self.camera.aspect = width as f32 / height as f32;
-        }
-        if self.mouse_captured {
-            self.renderer.center_cursor();
-        }
+        if height != 0 { self.camera.aspect = width as f32 / height as f32; }
+        if self.mouse_captured { self.renderer.center_cursor(); }
     }
 
     pub fn update_and_render(&mut self) {
-        if !self.paused {
-            self.update();
-        }
-        self.renderer.render(
-            &self.camera,
-            &self.player,
-            &self.world,
-            &self.npc_manager,
-            &self.vehicle_manager,
-            &self.ui_manager,
-        );
+        if !self.paused { self.update(); }
+        self.renderer.render(&self.camera, &self.player, &self.world, &self.npc_manager, &self.vehicle_manager, &self.ui_manager);
     }
 
     fn update(&mut self) {
         self.game_time += FIXED_DT;
-
         let mut movement = Vec3::ZERO;
         let speed = if self.input_state.sprint { SPRINT_SPEED } else { WALK_SPEED };
         let forward = self.camera.flat_forward();
         let right = self.camera.right();
-
         if self.input_state.forward { movement += forward; }
         if self.input_state.backward { movement -= forward; }
         if self.input_state.right { movement += right; }
         if self.input_state.left { movement -= right; }
-
         if movement.length_squared() > 0.0001 {
             let direction = movement.normalize();
             self.player.rotation = direction.x.atan2(direction.z);
             self.player.position += direction * speed * FIXED_DT;
         }
-
         self.player.update(self.game_time);
         self.physics_engine.update(&mut self.player, self.game_time);
         self.npc_manager.update(&self.player, &self.world, self.game_time);
@@ -216,7 +191,6 @@ impl Game {
         self.combat_system.update(&mut self.player, &mut self.npc_manager, self.game_time);
         self.mission_manager.update(&self.player, &self.npc_manager, self.game_time);
         self.world.update_time(FIXED_DT);
-
         self.camera.follow(self.player.position + Vec3::new(0.0, 1.0, 0.0));
         self.ui_manager.update(&self.player, &self.mission_manager, self.game_time);
     }
