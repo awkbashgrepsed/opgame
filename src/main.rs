@@ -3,6 +3,14 @@ mod camera;
 mod player;
 mod entity;
 mod renderer;
+mod world;
+mod npc;
+mod vehicle;
+mod combat;
+mod physics;
+mod ui;
+mod mission;
+mod sound;
 
 use winit::{
     event::{Event, WindowEvent},
@@ -40,6 +48,18 @@ fn main() {
                 event: WindowEvent::KeyboardInput { event, .. },
             } => {
                 game.handle_key(event);
+            }
+            Event::WindowEvent {
+                window_id: _,
+                event: WindowEvent::MouseInput { state, button, .. },
+            } => {
+                game.handle_mouse_click(state, button);
+            }
+            Event::WindowEvent {
+                window_id: _,
+                event: WindowEvent::MouseWheel { delta, .. },
+            } => {
+                game.handle_mouse_wheel(delta);
             }
             Event::AboutToWait => {
                 window.request_redraw();
