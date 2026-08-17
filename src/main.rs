@@ -24,12 +24,12 @@ fn main() {
     
     let event_loop = EventLoop::new().expect("Failed to create event loop");
     let window = WindowBuilder::new()
-        .with_title("OPGAME - GTA SA-like")
+        .with_title("OPGAME - GTA SA-like (OpenGL 2.1)")
         .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0))
         .build(&event_loop)
         .expect("Failed to create window");
 
-    let mut game = pollster::block_on(Game::new(&window));
+    let mut game = Game::new(window);
 
     let _ = event_loop.run(move |event, target| {
         match event {
@@ -62,13 +62,7 @@ fn main() {
                 game.handle_mouse_wheel(delta);
             }
             Event::AboutToWait => {
-                window.request_redraw();
-            }
-            Event::WindowEvent {
-                window_id: _,
-                event: WindowEvent::RedrawRequested,
-            } => {
-                pollster::block_on(game.update_and_render());
+                game.update_and_render();
             }
             _ => {}
         }

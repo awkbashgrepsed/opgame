@@ -13,6 +13,7 @@ use glam::Vec3;
 use winit::event::{KeyEvent, ElementState, MouseButton};
 use winit::event::MouseScrollDelta;
 use winit::keyboard::{KeyCode, PhysicalKey};
+use winit::window::Window;
 
 pub struct Game {
     renderer: Renderer,
@@ -42,8 +43,8 @@ struct InputState {
 }
 
 impl Game {
-    pub async fn new(window: &winit::window::Window) -> Self {
-        let renderer = Renderer::new(window).await;
+    pub fn new(window: Window) -> Self {
+        let renderer = Renderer::new(window);
         let player = Player::new(Vec3::new(0.0, 1.0, 0.0));
         let mut camera = Camera::new();
         
@@ -164,11 +165,11 @@ impl Game {
         self.camera.aspect = width as f32 / height as f32;
     }
 
-    pub async fn update_and_render(&mut self) {
+    pub fn update_and_render(&mut self) {
         if !self.paused {
             self.update();
         }
-        self.renderer.render(&self.camera, &self.player, &self.world, &self.npc_manager, &self.vehicle_manager, &self.ui_manager).await;
+        self.renderer.render(&self.camera, &self.player, &self.world, &self.npc_manager, &self.vehicle_manager, &self.ui_manager);
     }
 
     fn update(&mut self) {
