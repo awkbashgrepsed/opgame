@@ -107,12 +107,12 @@ impl Game {
                 KeyCode::ShiftLeft => self.input_state.sprint = pressed,
                 KeyCode::KeyP if pressed => self.paused = !self.paused,
                 KeyCode::F11 if pressed => self.renderer.toggle_fullscreen(),
-                KeyCode::KeyF if pressed => self.player.fire_weapon(),
-                KeyCode::KeyR if pressed => self.player.reload_weapon(),
-                KeyCode::Digit1 if pressed => self.player.select_weapon(0),
-                KeyCode::Digit2 if pressed && self.player.weapons.len() > 1 => self.player.select_weapon(1),
-                KeyCode::Digit3 if pressed && self.player.weapons.len() > 2 => self.player.select_weapon(2),
-                KeyCode::Escape if pressed => self.set_mouse_capture(false),
+                KeyCode::KeyF if pressed => { self.player.fire_weapon(); }
+                KeyCode::KeyR if pressed => { self.player.reload_weapon(); }
+                KeyCode::Digit1 if pressed => { self.player.select_weapon(0); }
+                KeyCode::Digit2 if pressed && self.player.weapons.len() > 1 => { self.player.select_weapon(1); }
+                KeyCode::Digit3 if pressed && self.player.weapons.len() > 2 => { self.player.select_weapon(2); }
+                KeyCode::F10 if pressed => self.set_mouse_capture(!self.mouse_captured),
                 _ => {}
             }
         }
