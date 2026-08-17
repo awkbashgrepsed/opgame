@@ -29,7 +29,7 @@ fn main() {
         .build(&event_loop)
         .expect("Failed to create window");
 
-    let mut game = Game::new(window, &event_loop);
+    let mut game = Game::new(window);
 
     let _ = event_loop.run(move |event, target| {
         match event {

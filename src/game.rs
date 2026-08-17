@@ -14,7 +14,6 @@ use winit::event::{KeyEvent, ElementState, MouseButton};
 use winit::event::MouseScrollDelta;
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::Window;
-use winit::event_loop::EventLoop;
 
 pub struct Game {
     renderer: Renderer,
@@ -44,8 +43,8 @@ struct InputState {
 }
 
 impl Game {
-    pub fn new(window: Window, event_loop: &EventLoop<()>) -> Self {
-        let renderer = Renderer::new(window, event_loop);
+    pub fn new(window: Window) -> Self {
+        let renderer = Renderer::new(window);
         let player = Player::new(Vec3::new(0.0, 1.0, 0.0));
         let mut camera = Camera::new();
         
