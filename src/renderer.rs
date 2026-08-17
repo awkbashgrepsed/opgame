@@ -1,33 +1,58 @@
 use glium::{Display, Surface};
+use glium::backend::Facade;
 use winit::window::Window;
+use winit::event_loop::EventLoop;
 use crate::camera::Camera;
 use crate::player::Player;
 use crate::world::World;
 use crate::npc::NPCManager;
 use crate::vehicle::VehicleManager;
 use crate::ui::UIManager;
-use glam::Vec3;
 
 pub struct Renderer {
-    display: Display,
+    display: glium::Display<glium::glutin::surface::WindowSurface>,
 }
 
 impl Renderer {
-    pub fn new(window: Window) -> Self {
-        let display = glium::Display::new(
-            window,
-            glium::glutin::context::ContextAttributeFlags::empty(),
-            Default::default(),
-        ).expect("Failed to create OpenGL context");
+    pub fn new(window: Window, event_loop: &EventLoop<()>) -> Self {
+        use glium::glutin::config::ConfigTemplateBuilder;
+        use glium::glutin::display::GlDisplay;
+        use glium::glutin::prelude::*;
+        use glium::glutin::surface::WindowSurface;
 
-        // Set OpenGL to compatibility mode for older versions
-        unsafe {
-            let gl = display.get_context();
-            gl.make_current().expect("Failed to make context current");
-        }
+        let (width, height) = {
+            let size = window.inner_size();
+            (size.width, size.height)
+        };
 
-        log::info!("OpenGL version: {:?}", display.get_opengl_version());
-        log::info!("Renderer: {}", display.get_opengl_renderer_string());
+        let config_template = ConfigTemplateBuilder::new()
+            .with_transparency(false)
+            .build();
+
+        let (window, gl_config) = unsafe {
+            glium::glutin::display::Display::new()
+                .unwrap()
+                .find_configurations(config_template)
+                .unwrap()
+                .next()
+                .unwrap()
+        };
+
+        let attrs = glium::glutin::surface::WindowAttributes::default()
+            .with_inner_size(glium::glutin::dpi::LogicalSize::new(width as f64, height as f64));
+
+        let surface_attrs = glium::glutin::surface::SurfaceAttributesBuilder::<WindowSurface>::new()
+            .build(window.raw_window_handle(), std::num::NonZeroU32::new(width).unwrap(), std::num::NonZeroU32::new(height).unwrap());
+
+        // Simple fallback: just create display with default settings
+        let display = unsafe {
+            glium::Display::new(
+                glium::glutin::display::Display::new().unwrap(),
+                Default::default(),
+            ).expect("Failed to create OpenGL context")
+        };
+
+        log::info!("OpenGL context created successfully");
 
         Self { display }
     }
