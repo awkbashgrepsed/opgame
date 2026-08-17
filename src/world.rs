@@ -3,8 +3,16 @@ use crate::entity::GameObject;
 use std::collections::HashMap;
 use uuid::Uuid;
 
+#[derive(Clone, Debug)]
+pub struct Road {
+    pub start: Vec3,
+    pub end: Vec3,
+    pub width: f32,
+}
+
 pub struct World {
     pub objects: HashMap<Uuid, GameObject>,
+    pub roads: Vec<Road>,
     pub width: f32,
     pub height: f32,
     pub time_of_day: f32, // 0-24
@@ -23,19 +31,32 @@ impl World {
     pub fn new() -> Self {
         let mut world = Self {
             objects: HashMap::new(),
+            roads: Vec::new(),
             width: 1000.0,
             height: 1000.0,
             time_of_day: 12.0,
             weather: Weather::Clear,
         };
 
-        // Spawn initial buildings/structures
+        // A small city block layout that can later be replaced by a real map.
+        world.add_road(Vec3::new(-250.0, 0.0, 0.0), Vec3::new(250.0, 0.0, 0.0), 12.0);
+        world.add_road(Vec3::new(0.0, 0.0, -250.0), Vec3::new(0.0, 0.0, 250.0), 12.0);
+        world.add_road(Vec3::new(-250.0, 0.0, -100.0), Vec3::new(250.0, 0.0, -100.0), 8.0);
+        world.add_road(Vec3::new(-250.0, 0.0, 100.0), Vec3::new(250.0, 0.0, 100.0), 8.0);
+        world.add_road(Vec3::new(-100.0, 0.0, -250.0), Vec3::new(-100.0, 0.0, 250.0), 8.0);
+        world.add_road(Vec3::new(100.0, 0.0, -250.0), Vec3::new(100.0, 0.0, 250.0), 8.0);
+
+        // Four starter city blocks around the central intersection.
         world.spawn_building(Vec3::new(-50.0, 0.0, -50.0), "Building_A");
         world.spawn_building(Vec3::new(50.0, 0.0, -50.0), "Building_B");
         world.spawn_building(Vec3::new(-50.0, 0.0, 50.0), "Building_C");
         world.spawn_building(Vec3::new(50.0, 0.0, 50.0), "Building_D");
 
         world
+    }
+
+    pub fn add_road(&mut self, start: Vec3, end: Vec3, width: f32) {
+        self.roads.push(Road { start, end, width });
     }
 
     pub fn spawn_building(&mut self, position: Vec3, name: &str) {
@@ -53,7 +74,7 @@ impl World {
     }
 
     pub fn update_time(&mut self, delta: f32) {
-        self.time_of_day += delta * 0.001; // Slow time progression
+        self.time_of_day += delta * 0.001;
         if self.time_of_day >= 24.0 {
             self.time_of_day = 0.0;
         }
