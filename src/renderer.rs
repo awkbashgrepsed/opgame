@@ -1,5 +1,4 @@
 use winit::window::Window;
-use std::ffi::CStr;
 use std::os::raw::c_void;
 use crate::camera::Camera;
 use crate::player::Player;
@@ -16,15 +15,11 @@ impl Renderer {
     pub fn new(window: Window) -> Self {
         // Load OpenGL function pointers
         gl::load_with(|symbol| {
-            // Convert symbol string to CStr
-            let cname = unsafe { CStr::from_ptr(symbol as *const i8) };
-            match cname.to_str() {
-                Ok(_name) => {
-                    // The gl crate will handle loading the actual function pointers
-                    // This is a no-op here, but required to initialize gl
-                    std::ptr::null() as *const c_void
-                }
-                Err(_) => std::ptr::null() as *const c_void,
+            // symbol is already a *const u8, just cast it appropriately
+            unsafe {
+                // For now, return null - proper implementation would use
+                // platform-specific function loading (e.g., wglGetProcAddress on Windows)
+                std::mem::transmute::<*const u8, *const c_void>(symbol as *const u8)
             }
         });
 
