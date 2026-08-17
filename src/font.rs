@@ -1,31 +1,10 @@
 use fontdue::Font;
-use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-
-#[derive(Clone, Copy)]
-pub struct GlyphInfo {
-    pub u0: f32,
-    pub v0: f32,
-    pub u1: f32,
-    pub v1: f32,
-    pub width: f32,
-    pub height: f32,
-    pub advance: f32,
-    pub offset_x: f32,
-    pub offset_y: f32,
-}
 
 pub struct FontRenderer {
     font: Font,
     size: f32,
-    atlas: Vec<u8>,
-    atlas_width: usize,
-    atlas_height: usize,
-    pen_x: usize,
-    pen_y: usize,
-    row_height: usize,
-    glyphs: HashMap<char, GlyphInfo>,
 }
 
 impl FontRenderer {
@@ -41,56 +20,46 @@ impl FontRenderer {
         let bytes = fs::read(path).map_err(|e| format!("Could not read font {}: {}", path, e))?;
         let font = Font::from_bytes(bytes, fontdue::FontSettings::default())
             .map_err(|e| format!("Could not load font: {}", e))?;
-        Ok(Self {
-            font,
-            size,
-            atlas: vec![0; 1024 * 1024],
-            atlas_width: 1024,
-            atlas_height: 1024,
-            pen_x: 1,
-            pen_y: 1,
-            row_height: 0,
-            glyphs: HashMap::new(),
-        })
+        Ok(Self { font, size })
     }
 
-    pub fn size(&self) -> f32 { self.size }
-
-    pub fn rasterize_glyph(&mut self, ch: char) -> Option<(GlyphInfo, Vec<u8>)> {
-        if let Some(info) = self.glyphs.get(&ch).copied() {
-            return Some((info, Vec::new()));
+    pub fn draw_text(&self, text: &str, x: f32, y: f32, color: [u8; 4]) {
+        let mut width = 1usize;
+        let mut height = (self.size * 1.5).ceil() as usize + 4;
+        let mut glyphs = Vec::with_capacity(text.chars().count());
+        for ch in text.chars() {
+            let (metrics, bitmap) = self.font.rasterize(ch, self.size);
+            width += metrics.advance_width.ceil().max(0.0) as usize;
+            height = height.max((metrics.height as i32 + self.size as i32 + 4) as usize);
+            glyphs.push((metrics, bitmap));
         }
-        let (metrics, bitmap) = self.font.rasterize(ch, self.size);
-        let w = metrics.width.max(1);
-        let h = metrics.height.max(1);
-        if self.pen_x + w + 1 >= self.atlas_width {
-            self.pen_x = 1;
-            self.pen_y += self.row_height + 1;
-            self.row_height = 0;
+        let mut pixels = vec![0u8; width * height * 4];
+        let baseline = self.size.ceil() as i32;
+        let mut pen_x = 0i32;
+        for (metrics, bitmap) in glyphs {
+            let gx = pen_x + metrics.xmin;
+            let gy = baseline - metrics.ymin - metrics.height as i32;
+            for row in 0..metrics.height {
+                for col in 0..metrics.width {
+                    let alpha = bitmap[row * metrics.width + col];
+                    if alpha == 0 { continue; }
+                    let px = gx + col as i32;
+                    let py = gy + row as i32;
+                    if px < 0 || py < 0 || px >= width as i32 || py >= height as i32 { continue; }
+                    let dst = (py as usize * width + px as usize) * 4;
+                    pixels[dst] = color[0];
+                    pixels[dst + 1] = color[1];
+                    pixels[dst + 2] = color[2];
+                    pixels[dst + 3] = ((alpha as u16 * color[3] as u16) / 255) as u8;
+                }
+            }
+            pen_x += metrics.advance_width.round() as i32;
         }
-        if self.pen_y + h + 1 >= self.atlas_height { return None; }
-        for y in 0..h {
-            let dst = (self.pen_y + y) * self.atlas_width + self.pen_x;
-            let src = y * w;
-            self.atlas[dst..dst + w].copy_from_slice(&bitmap[src..src + w]);
+        unsafe {
+            gl::RasterPos2f(x, y);
+            gl::PixelZoom(1.0, -1.0);
+            gl::DrawPixels(width as i32, height as i32, gl::RGBA, gl::UNSIGNED_BYTE, pixels.as_ptr() as *const _);
+            gl::PixelZoom(1.0, 1.0);
         }
-        let info = GlyphInfo {
-            u0: self.pen_x as f32 / self.atlas_width as f32,
-            v0: self.pen_y as f32 / self.atlas_height as f32,
-            u1: (self.pen_x + w) as f32 / self.atlas_width as f32,
-            v1: (self.pen_y + h) as f32 / self.atlas_height as f32,
-            width: w as f32,
-            height: h as f32,
-            advance: metrics.advance_width,
-            offset_x: metrics.xmin as f32,
-            offset_y: metrics.ymin as f32,
-        };
-        self.pen_x += w + 1;
-        self.row_height = self.row_height.max(h);
-        self.glyphs.insert(ch, info);
-        Some((info, bitmap))
     }
-
-    pub fn atlas(&self) -> &[u8] { &self.atlas }
-    pub fn glyph(&self, ch: char) -> Option<GlyphInfo> { self.glyphs.get(&ch).copied() }
 }
