@@ -11,9 +11,6 @@ use crate::ui::UIManager;
 use crate::vehicle::VehicleManager;
 use crate::world::World;
 
-// The `gl` crate exposes the modern/core OpenGL entry points, but the first
-// prototype uses a few compatibility-profile calls for deliberately simple
-// immediate-mode geometry. Declare those legacy entry points explicitly.
 #[link(name = "opengl32")]
 extern "system" {
     fn glMatrixMode(mode: u32);
@@ -30,6 +27,8 @@ const GL_MODELVIEW: u32 = 0x1700;
 const GL_QUADS: u32 = 0x0007;
 const GL_LINES: u32 = 0x0001;
 
+type Hwnd = winapi::shared::windef::HWND;
+
 pub struct Renderer {
     window: Window,
     hdc: winapi::shared::windef::HDC,
@@ -39,7 +38,7 @@ pub struct Renderer {
 impl Renderer {
     pub fn new(window: Window) -> Self {
         let hwnd = match window.raw_window_handle() {
-            RawWindowHandle::Win32(handle) => handle.hwnd,
+            RawWindowHandle::Win32(handle) => handle.hwnd as Hwnd,
             _ => panic!("OPGAME currently requires a Windows Win32 window"),
         };
 
@@ -130,15 +129,12 @@ impl Renderer {
             glLoadMatrixf(view.to_cols_array().as_ptr());
 
             draw_ground();
-
             for road in &world.roads {
                 draw_road(road.start, road.end, road.width);
             }
-
             for object in world.objects.values() {
                 draw_building(object.position);
             }
-
             draw_player(player.position);
 
             gl::Flush();
@@ -162,7 +158,8 @@ impl Drop for Renderer {
             winapi::um::wingdi::wglMakeCurrent(std::ptr::null_mut(), std::ptr::null_mut());
             winapi::um::wingdi::wglDeleteContext(self.hglrc);
             if let RawWindowHandle::Win32(handle) = self.window.raw_window_handle() {
-                winapi::um::winuser::ReleaseDC(handle.hwnd, self.hdc);
+                let hwnd = handle.hwnd as Hwnd;
+                winapi::um::winuser::ReleaseDC(hwnd, self.hdc);
             }
         }
     }
@@ -183,7 +180,6 @@ unsafe fn draw_road(start: glam::Vec3, end: glam::Vec3, width: f32) {
     if delta.length_squared() < f32::EPSILON {
         return;
     }
-
     let direction = delta.normalize();
     let side = glam::Vec3::new(-direction.z, 0.0, direction.x) * (width * 0.5);
 
@@ -211,16 +207,14 @@ unsafe fn draw_building(position: glam::Vec3) {
     let x1 = position.x + width * 0.5;
     let z0 = position.z - depth * 0.5;
     let z1 = position.z + depth * 0.5;
-    let y0 = 0.0;
-    let y1 = height;
 
     glColor3f(0.55, 0.50, 0.43);
     glBegin(GL_QUADS);
-    glVertex3f(x0, y0, z1); glVertex3f(x1, y0, z1); glVertex3f(x1, y1, z1); glVertex3f(x0, y1, z1);
-    glVertex3f(x1, y0, z0); glVertex3f(x0, y0, z0); glVertex3f(x0, y1, z0); glVertex3f(x1, y1, z0);
-    glVertex3f(x0, y0, z0); glVertex3f(x0, y0, z1); glVertex3f(x0, y1, z1); glVertex3f(x0, y1, z0);
-    glVertex3f(x1, y0, z1); glVertex3f(x1, y0, z0); glVertex3f(x1, y1, z0); glVertex3f(x1, y1, z1);
-    glVertex3f(x0, y1, z0); glVertex3f(x0, y1, z1); glVertex3f(x1, y1, z1); glVertex3f(x1, y1, z0);
+    glVertex3f(x0, 0.0, z1); glVertex3f(x1, 0.0, z1); glVertex3f(x1, height, z1); glVertex3f(x0, height, z1);
+    glVertex3f(x1, 0.0, z0); glVertex3f(x0, 0.0, z0); glVertex3f(x0, height, z0); glVertex3f(x1, height, z0);
+    glVertex3f(x0, 0.0, z0); glVertex3f(x0, 0.0, z1); glVertex3f(x0, height, z1); glVertex3f(x0, height, z0);
+    glVertex3f(x1, 0.0, z1); glVertex3f(x1, 0.0, z0); glVertex3f(x1, height, z0); glVertex3f(x1, height, z1);
+    glVertex3f(x0, height, z0); glVertex3f(x0, height, z1); glVertex3f(x1, height, z1); glVertex3f(x1, height, z0);
     glEnd();
 }
 
