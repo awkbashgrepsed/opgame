@@ -21,7 +21,7 @@ impl Camera {
             fov: 60.0,
             aspect: 1280.0 / 720.0,
             yaw: 0.0,
-            pitch: 15.0_f32.to_radians(),
+            pitch: (-15.0_f32).to_radians(),
             distance: 6.0,
         }
     }
