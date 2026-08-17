@@ -1,4 +1,3 @@
-use std::ffi::CString;
 use winit::window::Window;
 use crate::camera::Camera;
 use crate::player::Player;
@@ -13,7 +12,23 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(window: Window) -> Self {
-        log::info!("OpenGL Renderer initialized");
+        // Initialize OpenGL function pointers
+        gl::load_with(|s| {
+            // Get the function pointer from the platform
+            unsafe {
+                let cstr = std::ffi::CStr::from_ptr(s.as_ptr() as *const i8);
+                match cstr.to_str() {
+                    Ok(name) => {
+                        // For now, return null - in a real app, you'd use
+                        // glutGetProcAddress or similar
+                        std::ptr::null()
+                    }
+                    Err(_) => std::ptr::null(),
+                }
+            }
+        });
+
+        log::info!("Renderer initialized");
         
         Self {
             _window: window,
@@ -40,7 +55,7 @@ impl Renderer {
             gl::ClearColor(0.1, 0.2, 0.3, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
-            // Simple rendering placeholder
+            // Set up projection matrix for 2D rendering
             gl::MatrixMode(gl::PROJECTION);
             gl::LoadIdentity();
             gl::Ortho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0);
