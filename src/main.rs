@@ -21,7 +21,7 @@ use game::Game;
 
 fn main() {
     env_logger::init();
-    
+
     let event_loop = EventLoop::new().expect("Failed to create event loop");
     let window = WindowBuilder::new()
         .with_title("OPGAME - GTA SA-like (OpenGL 2.1+)")
@@ -48,6 +48,12 @@ fn main() {
                 event: WindowEvent::KeyboardInput { event, .. },
             } => {
                 game.handle_key(event);
+            }
+            Event::WindowEvent {
+                window_id: _,
+                event: WindowEvent::CursorMoved { position, .. },
+            } => {
+                game.handle_cursor_moved(position.x, position.y);
             }
             Event::WindowEvent {
                 window_id: _,
