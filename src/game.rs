@@ -33,7 +33,7 @@ pub struct Game {
     sound_manager: SoundManager,
     game_time: f32,
     paused: bool,
-    last_cursor_position: Option<(f64, f64)>,
+    mouse_captured: bool,
 }
 
 struct InputState {
@@ -72,7 +72,7 @@ impl Game {
 
         camera.follow(player.position + Vec3::new(0.0, 1.0, 0.0));
 
-        Self {
+        let mut game = Self {
             renderer,
             player,
             camera,
@@ -87,8 +87,11 @@ impl Game {
             sound_manager,
             game_time: 0.0,
             paused: false,
-            last_cursor_position: None,
-        }
+            mouse_captured: false,
+        };
+
+        game.set_mouse_capture(true);
+        game
     }
 
     pub fn handle_key(&mut self, event: KeyEvent) {
@@ -103,29 +106,42 @@ impl Game {
                 KeyCode::Space => self.input_state.jump = pressed,
                 KeyCode::ShiftLeft => self.input_state.sprint = pressed,
                 KeyCode::KeyP if pressed => self.paused = !self.paused,
-                KeyCode::KeyF if pressed => { self.player.fire_weapon(); }
+                KeyCode::F11 if pressed => self.renderer.toggle_fullscreen(),
+                KeyCode::KeyF if pressed => self.player.fire_weapon(),
                 KeyCode::KeyR if pressed => self.player.reload_weapon(),
                 KeyCode::Digit1 if pressed => self.player.select_weapon(0),
                 KeyCode::Digit2 if pressed && self.player.weapons.len() > 1 => self.player.select_weapon(1),
                 KeyCode::Digit3 if pressed && self.player.weapons.len() > 2 => self.player.select_weapon(2),
-                KeyCode::Escape if pressed => std::process::exit(0),
+                KeyCode::Escape if pressed => self.set_mouse_capture(false),
                 _ => {}
             }
         }
     }
 
     pub fn handle_cursor_moved(&mut self, x: f64, y: f64) {
-        if let Some((last_x, last_y)) = self.last_cursor_position {
-            let sensitivity = 0.004;
-            let dx = (x - last_x) as f32 * sensitivity;
-            let dy = (y - last_y) as f32 * sensitivity;
-            self.camera.rotate(dx, dy);
+        if !self.mouse_captured {
+            return;
         }
-        self.last_cursor_position = Some((x, y));
+
+        let (center_x, center_y) = self.renderer.window_center();
+        let dx = x - center_x;
+        let dy = y - center_y;
+
+        if dx.abs() < 0.5 && dy.abs() < 0.5 {
+            return;
+        }
+
+        let sensitivity = 0.004;
+        self.camera.rotate(dx as f32 * sensitivity, dy as f32 * sensitivity);
+        self.renderer.center_cursor();
     }
 
     pub fn handle_mouse_click(&mut self, state: ElementState, button: MouseButton) {
         if state == ElementState::Pressed {
+            if !self.mouse_captured {
+                self.set_mouse_capture(true);
+                return;
+            }
             match button {
                 MouseButton::Left => { self.player.fire_weapon(); }
                 MouseButton::Right => {}
@@ -142,10 +158,21 @@ impl Game {
         self.camera.zoom(scroll_amount * 0.5);
     }
 
+    fn set_mouse_capture(&mut self, captured: bool) {
+        self.mouse_captured = captured;
+        self.renderer.set_cursor_visible(!captured);
+        if captured {
+            self.renderer.center_cursor();
+        }
+    }
+
     pub fn resize(&mut self, width: u32, height: u32) {
         self.renderer.resize(width, height);
         if height != 0 {
             self.camera.aspect = width as f32 / height as f32;
+        }
+        if self.mouse_captured {
+            self.renderer.center_cursor();
         }
     }
 
@@ -176,8 +203,6 @@ impl Game {
         if self.input_state.right { movement += right; }
         if self.input_state.left { movement -= right; }
 
-        // GTA-style movement: the character faces the direction of travel while
-        // the camera remains free to orbit around the character.
         if movement.length_squared() > 0.0001 {
             let direction = movement.normalize();
             self.player.rotation = direction.x.atan2(direction.z);
@@ -186,7 +211,6 @@ impl Game {
 
         self.player.update(self.game_time);
         self.physics_engine.update(&mut self.player, self.game_time);
-
         self.npc_manager.update(&self.player, &self.world, self.game_time);
         self.vehicle_manager.update(self.game_time);
         self.combat_system.update(&mut self.player, &mut self.npc_manager, self.game_time);
