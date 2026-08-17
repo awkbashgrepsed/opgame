@@ -13,7 +13,6 @@ use glam::Vec3;
 use winit::event::{KeyEvent, ElementState, MouseButton};
 use winit::event::MouseScrollDelta;
 use winit::keyboard::{KeyCode, PhysicalKey};
-use std::collections::HashSet;
 
 pub struct Game {
     renderer: Renderer,
@@ -102,12 +101,34 @@ impl Game {
                 KeyCode::KeyD => self.input_state.right = pressed,
                 KeyCode::Space => self.input_state.jump = pressed,
                 KeyCode::ShiftLeft => self.input_state.sprint = pressed,
-                KeyCode::KeyP => self.paused = !self.paused,
-                KeyCode::KeyF => self.player.fire_weapon(),
-                KeyCode::KeyR => self.player.reload_weapon(),
-                KeyCode::Digit1..=Digit9 => {
-                    if let PhysicalKey::Code(KeyCode::Digit1) = event.physical_key {
+                KeyCode::KeyP => {
+                    if pressed {
+                        self.paused = !self.paused;
+                    }
+                }
+                KeyCode::KeyF => {
+                    if pressed {
+                        self.player.fire_weapon();
+                    }
+                }
+                KeyCode::KeyR => {
+                    if pressed {
+                        self.player.reload_weapon();
+                    }
+                }
+                KeyCode::Digit1 => {
+                    if pressed {
                         self.player.select_weapon(0);
+                    }
+                }
+                KeyCode::Digit2 => {
+                    if pressed && self.player.weapons.len() > 1 {
+                        self.player.select_weapon(1);
+                    }
+                }
+                KeyCode::Digit3 => {
+                    if pressed && self.player.weapons.len() > 2 {
+                        self.player.select_weapon(2);
                     }
                 }
                 KeyCode::Escape => std::process::exit(0),
@@ -119,8 +140,12 @@ impl Game {
     pub fn handle_mouse_click(&mut self, state: ElementState, button: MouseButton) {
         if state == ElementState::Pressed {
             match button {
-                MouseButton::Left => self.player.fire_weapon(),
-                MouseButton::Right => {} // Aim
+                MouseButton::Left => {
+                    self.player.fire_weapon();
+                }
+                MouseButton::Right => {
+                    // Aim
+                }
                 _ => {}
             }
         }

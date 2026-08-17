@@ -1,6 +1,5 @@
 use glam::Vec3;
 use uuid::Uuid;
-use crate::player::Player;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum VehicleType {
@@ -54,9 +53,9 @@ impl Vehicle {
         }
     }
 
-    pub fn add_occupant(&mut self, player_id: Uuid) {
-        if !self.occupants.contains(&player_id) {
-            self.occupants.push(player_id);
+    pub fn add_occupant(&mut self, _player_id: Uuid) {
+        if !self.occupants.contains(&_player_id) {
+            self.occupants.push(_player_id);
         }
     }
 

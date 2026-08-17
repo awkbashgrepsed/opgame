@@ -1,7 +1,6 @@
 use glam::Vec3;
 use uuid::Uuid;
 use rand::Rng;
-use crate::world::World;
 use crate::player::Player;
 use std::collections::HashMap;
 
@@ -80,6 +79,11 @@ impl NPC {
                 // Random walk
                 let mut rng = rand::thread_rng();
                 self.velocity = Vec3::new(rng.gen_range(-0.05..0.05), 0.0, rng.gen_range(-0.05..0.05));
+            }
+            NPCState::Running => {
+                // NPC is running away or towards something
+                let mut rng = rand::thread_rng();
+                self.velocity = Vec3::new(rng.gen_range(-0.1..0.1), 0.0, rng.gen_range(-0.1..0.1));
             }
             NPCState::Fighting => {
                 if distance_to_player < 2.0 {

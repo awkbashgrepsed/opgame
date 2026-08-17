@@ -31,7 +31,7 @@ impl Renderer {
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
-                force_fallback: false,
+                force_fallback_adapter: false,
                 compatible_surface: Some(&surface),
             })
             .await
@@ -72,12 +72,12 @@ impl Renderer {
 
     pub async fn render(
         &self,
-        camera: &Camera,
+        _camera: &Camera,
         player: &Player,
-        world: &World,
+        _world: &World,
         npc_manager: &NPCManager,
         vehicle_manager: &VehicleManager,
-        ui_manager: &UIManager,
+        _ui_manager: &UIManager,
     ) {
         let frame = self
             .surface
@@ -90,7 +90,7 @@ impl Renderer {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
         {
-            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let _rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
@@ -111,7 +111,6 @@ impl Renderer {
             });
 
             // Render world objects
-            drop(rpass);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));

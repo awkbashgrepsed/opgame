@@ -1,5 +1,4 @@
 use crate::player::Player;
-use crate::mission::MissionManager;
 
 pub struct UIManager {
     show_map: bool,
@@ -24,7 +23,7 @@ impl UIManager {
         self.show_menu = !self.show_menu;
     }
 
-    pub fn update(&mut self, player: &Player, mission_manager: &MissionManager, _time: f32) {
+    pub fn update(&mut self, _player: &Player, _mission_manager: &crate::mission::MissionManager, _time: f32) {
         // Update UI based on game state
     }
 
