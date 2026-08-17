@@ -1,0 +1,57 @@
+mod game;
+mod camera;
+mod player;
+mod entity;
+mod renderer;
+
+use winit::{
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    window::WindowBuilder,
+};
+use game::Game;
+
+fn main() {
+    env_logger::init();
+    
+    let event_loop = EventLoop::new().expect("Failed to create event loop");
+    let window = WindowBuilder::new()
+        .with_title("OPGAME - GTA SA-like")
+        .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0))
+        .build(&event_loop)
+        .expect("Failed to create window");
+
+    let mut game = pollster::block_on(Game::new(&window));
+
+    let _ = event_loop.run(move |event, target| {
+        match event {
+            Event::WindowEvent {
+                window_id: _,
+                event: WindowEvent::CloseRequested,
+            } => target.exit(),
+            Event::WindowEvent {
+                window_id: _,
+                event: WindowEvent::Resized(size),
+            } => {
+                game.resize(size.width, size.height);
+            }
+            Event::WindowEvent {
+                window_id: _,
+                event: WindowEvent::KeyboardInput { event, .. },
+            } => {
+                game.handle_key(event);
+            }
+            Event::AboutToWait => {
+                window.request_redraw();
+            }
+            Event::WindowEvent {
+                window_id: _,
+                event: WindowEvent::RedrawRequested,
+            } => {
+                pollster::block_on(game.update_and_render());
+            }
+            _ => {}
+        }
+        target.set_control_flow(ControlFlow::Poll);
+    });
+}
