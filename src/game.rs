@@ -166,17 +166,24 @@ impl Game {
     fn update(&mut self) {
         self.game_time += FIXED_DT;
 
-        let mut velocity = Vec3::ZERO;
+        let mut movement = Vec3::ZERO;
         let speed = if self.input_state.sprint { SPRINT_SPEED } else { WALK_SPEED };
         let forward = self.camera.flat_forward();
         let right = self.camera.right();
 
-        if self.input_state.forward { velocity += forward * speed * FIXED_DT; }
-        if self.input_state.backward { velocity -= forward * speed * FIXED_DT; }
-        if self.input_state.right { velocity += right * speed * FIXED_DT; }
-        if self.input_state.left { velocity -= right * speed * FIXED_DT; }
+        if self.input_state.forward { movement += forward; }
+        if self.input_state.backward { movement -= forward; }
+        if self.input_state.right { movement += right; }
+        if self.input_state.left { movement -= right; }
 
-        self.player.position += velocity;
+        // GTA-style movement: the character faces the direction of travel while
+        // the camera remains free to orbit around the character.
+        if movement.length_squared() > 0.0001 {
+            let direction = movement.normalize();
+            self.player.rotation = direction.x.atan2(direction.z);
+            self.player.position += direction * speed * FIXED_DT;
+        }
+
         self.player.update(self.game_time);
         self.physics_engine.update(&mut self.player, self.game_time);
 
