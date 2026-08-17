@@ -14,6 +14,10 @@ use winit::event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::Window;
 
+const FIXED_DT: f32 = 1.0 / 60.0;
+const WALK_SPEED: f32 = 3.0;
+const SPRINT_SPEED: f32 = 6.0;
+
 pub struct Game {
     renderer: Renderer,
     player: Player,
@@ -160,17 +164,17 @@ impl Game {
     }
 
     fn update(&mut self) {
-        self.game_time += 0.016;
+        self.game_time += FIXED_DT;
 
         let mut velocity = Vec3::ZERO;
-        let speed = if self.input_state.sprint { 0.2 } else { 0.1 };
+        let speed = if self.input_state.sprint { SPRINT_SPEED } else { WALK_SPEED };
         let forward = self.camera.flat_forward();
         let right = self.camera.right();
 
-        if self.input_state.forward { velocity += forward * speed; }
-        if self.input_state.backward { velocity -= forward * speed; }
-        if self.input_state.right { velocity += right * speed; }
-        if self.input_state.left { velocity -= right * speed; }
+        if self.input_state.forward { velocity += forward * speed * FIXED_DT; }
+        if self.input_state.backward { velocity -= forward * speed * FIXED_DT; }
+        if self.input_state.right { velocity += right * speed * FIXED_DT; }
+        if self.input_state.left { velocity -= right * speed * FIXED_DT; }
 
         self.player.position += velocity;
         self.player.update(self.game_time);
@@ -180,7 +184,7 @@ impl Game {
         self.vehicle_manager.update(self.game_time);
         self.combat_system.update(&mut self.player, &mut self.npc_manager, self.game_time);
         self.mission_manager.update(&self.player, &self.npc_manager, self.game_time);
-        self.world.update_time(0.016);
+        self.world.update_time(FIXED_DT);
 
         self.camera.follow(self.player.position + Vec3::new(0.0, 1.0, 0.0));
         self.ui_manager.update(&self.player, &self.mission_manager, self.game_time);
