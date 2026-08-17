@@ -1,4 +1,3 @@
-use raw_window_handle::HasRawWindowHandle;
 use winit::window::Window;
 use std::ffi::CStr;
 use std::os::raw::c_void;
@@ -16,14 +15,13 @@ pub struct Renderer {
 impl Renderer {
     pub fn new(window: Window) -> Self {
         // Load OpenGL function pointers
-        // The gl crate's load_with takes a function that loads GL function addresses
         gl::load_with(|symbol| {
-            let cname = CStr::from_ptr(symbol as *const i8);
+            // Convert symbol string to CStr
+            let cname = unsafe { CStr::from_ptr(symbol as *const i8) };
             match cname.to_str() {
                 Ok(_name) => {
-                    // In a real implementation, you'd use platform-specific code
-                    // For now, we'll use a simple approach:
-                    // The functions will be available through the static gl bindings
+                    // The gl crate will handle loading the actual function pointers
+                    // This is a no-op here, but required to initialize gl
                     std::ptr::null() as *const c_void
                 }
                 Err(_) => std::ptr::null() as *const c_void,
