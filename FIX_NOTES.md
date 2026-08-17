@@ -1,0 +1,1 @@
+The starter-city renderer uses a small Win32 compatibility OpenGL layer for immediate-mode prototype geometry. The legacy entry points are declared directly because gl 0.14 does not expose MatrixMode/Begin/End/Vertex3f in its generated Rust bindings. Win32 user APIs are enabled through the winapi winuser feature.
