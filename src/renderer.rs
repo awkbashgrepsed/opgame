@@ -11,16 +11,35 @@ use crate::ui::UIManager;
 use crate::vehicle::VehicleManager;
 use crate::world::World;
 
+// The `gl` crate exposes the modern/core OpenGL entry points, but the first
+// prototype uses a few compatibility-profile calls for deliberately simple
+// immediate-mode geometry. Declare those legacy entry points explicitly.
+#[link(name = "opengl32")]
+extern "system" {
+    fn glMatrixMode(mode: u32);
+    fn glLoadMatrixf(matrix: *const f32);
+    fn glColor3f(red: f32, green: f32, blue: f32);
+    fn glBegin(mode: u32);
+    fn glEnd();
+    fn glVertex3f(x: f32, y: f32, z: f32);
+    fn glLineWidth(width: f32);
+}
+
+const GL_PROJECTION: u32 = 0x1701;
+const GL_MODELVIEW: u32 = 0x1700;
+const GL_QUADS: u32 = 0x0007;
+const GL_LINES: u32 = 0x0001;
+
 pub struct Renderer {
     window: Window,
     hdc: winapi::shared::windef::HDC,
-    hglrc: winapi::um::wingdi::HGLRC,
+    hglrc: winapi::shared::windef::HGLRC,
 }
 
 impl Renderer {
     pub fn new(window: Window) -> Self {
         let hwnd = match window.raw_window_handle() {
-            RawWindowHandle::Win32(handle) => handle.hwnd.get() as winapi::shared::windef::HWND,
+            RawWindowHandle::Win32(handle) => handle.hwnd,
             _ => panic!("OPGAME currently requires a Windows Win32 window"),
         };
 
@@ -30,7 +49,7 @@ impl Renderer {
                 panic!("GetDC failed");
             }
 
-            let mut pixel_format = winapi::um::wingdi::PIXELFORMATDESCRIPTOR {
+            let pixel_format = winapi::um::wingdi::PIXELFORMATDESCRIPTOR {
                 nSize: std::mem::size_of::<winapi::um::wingdi::PIXELFORMATDESCRIPTOR>() as u16,
                 nVersion: 1,
                 dwFlags: winapi::um::wingdi::PFD_DRAW_TO_WINDOW
@@ -80,8 +99,6 @@ impl Renderer {
             gl::ClearColor(0.38, 0.58, 0.82, 1.0);
             gl::Viewport(0, 0, 1280, 720);
 
-            pixel_format.nSize = pixel_format.nSize;
-
             log::info!("OpenGL context initialized");
             Self { window, hdc, hglrc }
         }
@@ -105,12 +122,12 @@ impl Renderer {
         unsafe {
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
-            // Use OpenGL's fixed-function pipeline. It keeps this first visible
-            // prototype deliberately small while we build the game world.
-            gl::MatrixMode(gl::PROJECTION);
-            gl::LoadMatrixf(camera.projection_matrix().to_cols_array().as_ptr());
-            gl::MatrixMode(gl::MODELVIEW);
-            gl::LoadMatrixf(camera.view_matrix().to_cols_array().as_ptr());
+            let projection = camera.projection_matrix();
+            let view = camera.view_matrix();
+            glMatrixMode(GL_PROJECTION);
+            glLoadMatrixf(projection.to_cols_array().as_ptr());
+            glMatrixMode(GL_MODELVIEW);
+            glLoadMatrixf(view.to_cols_array().as_ptr());
 
             draw_ground();
 
@@ -145,41 +162,45 @@ impl Drop for Renderer {
             winapi::um::wingdi::wglMakeCurrent(std::ptr::null_mut(), std::ptr::null_mut());
             winapi::um::wingdi::wglDeleteContext(self.hglrc);
             if let RawWindowHandle::Win32(handle) = self.window.raw_window_handle() {
-                let hwnd = handle.hwnd.get() as winapi::shared::windef::HWND;
-                winapi::um::winuser::ReleaseDC(hwnd, self.hdc);
+                winapi::um::winuser::ReleaseDC(handle.hwnd, self.hdc);
             }
         }
     }
 }
 
 unsafe fn draw_ground() {
-    gl::Color3f(0.18, 0.38, 0.18);
-    gl::Begin(gl::QUADS);
-    gl::Vertex3f(-500.0, 0.0, -500.0);
-    gl::Vertex3f(500.0, 0.0, -500.0);
-    gl::Vertex3f(500.0, 0.0, 500.0);
-    gl::Vertex3f(-500.0, 0.0, 500.0);
-    gl::End();
+    glColor3f(0.18, 0.38, 0.18);
+    glBegin(GL_QUADS);
+    glVertex3f(-500.0, 0.0, -500.0);
+    glVertex3f(500.0, 0.0, -500.0);
+    glVertex3f(500.0, 0.0, 500.0);
+    glVertex3f(-500.0, 0.0, 500.0);
+    glEnd();
 }
 
 unsafe fn draw_road(start: glam::Vec3, end: glam::Vec3, width: f32) {
-    let direction = (end - start).normalize();
+    let delta = end - start;
+    if delta.length_squared() < f32::EPSILON {
+        return;
+    }
+
+    let direction = delta.normalize();
     let side = glam::Vec3::new(-direction.z, 0.0, direction.x) * (width * 0.5);
 
-    gl::Color3f(0.12, 0.12, 0.13);
-    gl::Begin(gl::QUADS);
-    gl::Vertex3f((start - side).x, 0.01, (start - side).z);
-    gl::Vertex3f((start + side).x, 0.01, (start + side).z);
-    gl::Vertex3f((end + side).x, 0.01, (end + side).z);
-    gl::Vertex3f((end - side).x, 0.01, (end - side).z);
-    gl::End();
+    glColor3f(0.12, 0.12, 0.13);
+    glBegin(GL_QUADS);
+    glVertex3f((start - side).x, 0.01, (start - side).z);
+    glVertex3f((start + side).x, 0.01, (start + side).z);
+    glVertex3f((end + side).x, 0.01, (end + side).z);
+    glVertex3f((end - side).x, 0.01, (end - side).z);
+    glEnd();
 
-    gl::Color3f(0.85, 0.78, 0.18);
-    gl::Begin(gl::LINES);
-    gl::LineWidth(2.0);
-    gl::Vertex3f(start.x, 0.025, start.z);
-    gl::Vertex3f(end.x, 0.025, end.z);
-    gl::End();
+    glColor3f(0.85, 0.78, 0.18);
+    glLineWidth(2.0);
+    glBegin(GL_LINES);
+    glVertex3f(start.x, 0.025, start.z);
+    glVertex3f(end.x, 0.025, end.z);
+    glEnd();
 }
 
 unsafe fn draw_building(position: glam::Vec3) {
@@ -193,17 +214,14 @@ unsafe fn draw_building(position: glam::Vec3) {
     let y0 = 0.0;
     let y1 = height;
 
-    gl::Color3f(0.55, 0.50, 0.43);
-    gl::Begin(gl::QUADS);
-    // front/back
-    gl::Vertex3f(x0, y0, z1); gl::Vertex3f(x1, y0, z1); gl::Vertex3f(x1, y1, z1); gl::Vertex3f(x0, y1, z1);
-    gl::Vertex3f(x1, y0, z0); gl::Vertex3f(x0, y0, z0); gl::Vertex3f(x0, y1, z0); gl::Vertex3f(x1, y1, z0);
-    // left/right
-    gl::Vertex3f(x0, y0, z0); gl::Vertex3f(x0, y0, z1); gl::Vertex3f(x0, y1, z1); gl::Vertex3f(x0, y1, z0);
-    gl::Vertex3f(x1, y0, z1); gl::Vertex3f(x1, y0, z0); gl::Vertex3f(x1, y1, z0); gl::Vertex3f(x1, y1, z1);
-    // roof/floor
-    gl::Vertex3f(x0, y1, z0); gl::Vertex3f(x0, y1, z1); gl::Vertex3f(x1, y1, z1); gl::Vertex3f(x1, y1, z0);
-    gl::End();
+    glColor3f(0.55, 0.50, 0.43);
+    glBegin(GL_QUADS);
+    glVertex3f(x0, y0, z1); glVertex3f(x1, y0, z1); glVertex3f(x1, y1, z1); glVertex3f(x0, y1, z1);
+    glVertex3f(x1, y0, z0); glVertex3f(x0, y0, z0); glVertex3f(x0, y1, z0); glVertex3f(x1, y1, z0);
+    glVertex3f(x0, y0, z0); glVertex3f(x0, y0, z1); glVertex3f(x0, y1, z1); glVertex3f(x0, y1, z0);
+    glVertex3f(x1, y0, z1); glVertex3f(x1, y0, z0); glVertex3f(x1, y1, z0); glVertex3f(x1, y1, z1);
+    glVertex3f(x0, y1, z0); glVertex3f(x0, y1, z1); glVertex3f(x1, y1, z1); glVertex3f(x1, y1, z0);
+    glEnd();
 }
 
 unsafe fn draw_player(position: glam::Vec3) {
@@ -212,12 +230,12 @@ unsafe fn draw_player(position: glam::Vec3) {
     let y = position.y;
     let size = 0.8;
 
-    gl::Color3f(0.2, 0.35, 0.9);
-    gl::Begin(gl::QUADS);
-    gl::Vertex3f(x-size, y, z-size); gl::Vertex3f(x+size, y, z-size); gl::Vertex3f(x+size, y+1.8, z-size); gl::Vertex3f(x-size, y+1.8, z-size);
-    gl::Vertex3f(x+size, y, z+size); gl::Vertex3f(x-size, y, z+size); gl::Vertex3f(x-size, y+1.8, z+size); gl::Vertex3f(x+size, y+1.8, z+size);
-    gl::Vertex3f(x-size, y, z+size); gl::Vertex3f(x-size, y, z-size); gl::Vertex3f(x-size, y+1.8, z-size); gl::Vertex3f(x-size, y+1.8, z+size);
-    gl::Vertex3f(x+size, y, z-size); gl::Vertex3f(x+size, y, z+size); gl::Vertex3f(x+size, y+1.8, z+size); gl::Vertex3f(x+size, y+1.8, z-size);
-    gl::Vertex3f(x-size, y+1.8, z-size); gl::Vertex3f(x+size, y+1.8, z-size); gl::Vertex3f(x+size, y+1.8, z+size); gl::Vertex3f(x-size, y+1.8, z+size);
-    gl::End();
+    glColor3f(0.2, 0.35, 0.9);
+    glBegin(GL_QUADS);
+    glVertex3f(x-size, y, z-size); glVertex3f(x+size, y, z-size); glVertex3f(x+size, y+1.8, z-size); glVertex3f(x-size, y+1.8, z-size);
+    glVertex3f(x+size, y, z+size); glVertex3f(x-size, y, z+size); glVertex3f(x-size, y+1.8, z+size); glVertex3f(x+size, y+1.8, z+size);
+    glVertex3f(x-size, y, z+size); glVertex3f(x-size, y, z-size); glVertex3f(x-size, y+1.8, z-size); glVertex3f(x-size, y+1.8, z+size);
+    glVertex3f(x+size, y, z-size); glVertex3f(x+size, y, z+size); glVertex3f(x+size, y+1.8, z+size); glVertex3f(x+size, y+1.8, z-size);
+    glVertex3f(x-size, y+1.8, z-size); glVertex3f(x+size, y+1.8, z-size); glVertex3f(x+size, y+1.8, z+size); glVertex3f(x-size, y+1.8, z+size);
+    glEnd();
 }
