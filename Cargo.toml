@@ -18,4 +18,4 @@ raw-window-handle = "0.5"
 glutin = "0.31"
 glutin-winit = "0.4"
 gl = "0.14"
-winapi = { version = "0.3", features = ["wingdi", "libloaderapi"] }
+winapi = { version = "0.3", features = ["wingdi", "winuser", "libloaderapi"] }
