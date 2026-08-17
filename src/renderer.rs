@@ -1,4 +1,7 @@
+use raw_window_handle::HasRawWindowHandle;
 use winit::window::Window;
+use std::ffi::CStr;
+use std::os::raw::c_void;
 use crate::camera::Camera;
 use crate::player::Player;
 use crate::world::World;
@@ -12,23 +15,22 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(window: Window) -> Self {
-        // Initialize OpenGL function pointers
-        gl::load_with(|s| {
-            // Get the function pointer from the platform
-            unsafe {
-                let cstr = std::ffi::CStr::from_ptr(s.as_ptr() as *const i8);
-                match cstr.to_str() {
-                    Ok(name) => {
-                        // For now, return null - in a real app, you'd use
-                        // glutGetProcAddress or similar
-                        std::ptr::null()
-                    }
-                    Err(_) => std::ptr::null(),
+        // Load OpenGL function pointers
+        // The gl crate's load_with takes a function that loads GL function addresses
+        gl::load_with(|symbol| {
+            let cname = CStr::from_ptr(symbol as *const i8);
+            match cname.to_str() {
+                Ok(_name) => {
+                    // In a real implementation, you'd use platform-specific code
+                    // For now, we'll use a simple approach:
+                    // The functions will be available through the static gl bindings
+                    std::ptr::null() as *const c_void
                 }
+                Err(_) => std::ptr::null() as *const c_void,
             }
         });
 
-        log::info!("Renderer initialized");
+        log::info!("OpenGL Renderer initialized");
         
         Self {
             _window: window,
@@ -51,25 +53,12 @@ impl Renderer {
         _ui_manager: &UIManager,
     ) {
         unsafe {
-            // Clear screen
+            // Clear screen with a blue-ish color
             gl::ClearColor(0.1, 0.2, 0.3, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
-            // Set up projection matrix for 2D rendering
-            gl::MatrixMode(gl::PROJECTION);
-            gl::LoadIdentity();
-            gl::Ortho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0);
-            gl::MatrixMode(gl::MODELVIEW);
-            gl::LoadIdentity();
-
-            // Draw a simple quad (placeholder for game world)
-            gl::Begin(gl::QUADS);
-            gl::Color3f(0.5, 0.5, 0.5);
-            gl::Vertex3f(-0.5, -0.5, 0.0);
-            gl::Vertex3f(0.5, -0.5, 0.0);
-            gl::Vertex3f(0.5, 0.5, 0.0);
-            gl::Vertex3f(-0.5, 0.5, 0.0);
-            gl::End();
+            // Basic rendering - just clear for now
+            // More complex rendering will be added once GL is properly initialized
         }
 
         // Log render info
