@@ -60,6 +60,7 @@ impl Game {
                 KeyCode::KeyF if pressed=>{self.player.fire_weapon();},KeyCode::KeyR if pressed=>{self.player.reload_weapon();},
                 KeyCode::Digit1 if pressed=>{self.player.select_weapon(0);},KeyCode::Digit2 if pressed&&self.player.weapons.len()>1=>{self.player.select_weapon(1);},KeyCode::Digit3 if pressed&&self.player.weapons.len()>2=>{self.player.select_weapon(2);},
                 KeyCode::PageUp if pressed=>self.camera.zoom(0.5),KeyCode::PageDown if pressed=>self.camera.zoom(-0.5),
+                KeyCode::Tab if pressed=>self.camera.toggle_shoulder(),
                 KeyCode::F10 if pressed=>self.set_mouse_capture(!self.mouse_captured),_=>{}
             }
         }
