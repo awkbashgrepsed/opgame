@@ -39,7 +39,6 @@ fn main() {
             Event::WindowEvent { window_id: _, event: WindowEvent::KeyboardInput { event, .. } } => game.handle_key(event),
             Event::WindowEvent { window_id: _, event: WindowEvent::CursorMoved { position, .. } } => game.handle_cursor_moved(position.x, position.y),
             Event::WindowEvent { window_id: _, event: WindowEvent::MouseInput { state, button, .. } } => game.handle_mouse_click(state, button),
-            Event::WindowEvent { window_id: _, event: WindowEvent::MouseWheel { delta, .. } } => game.handle_mouse_wheel(delta),
             Event::AboutToWait => game.update_and_render(),
             _ => {}
         }
