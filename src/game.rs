@@ -68,7 +68,7 @@ impl Game {
     pub fn handle_mouse_click(&mut self,state:ElementState,button:MouseButton){if self.settings_menu{return;}match button{MouseButton::Right=>{self.aiming=state==ElementState::Pressed;if self.aiming&&!self.mouse_captured{self.set_mouse_capture(true);}},MouseButton::Left=>{if state==ElementState::Pressed{if !self.mouse_captured{self.set_mouse_capture(true);return;}self.player.fire_weapon();}},_=>{}}}
     fn set_mouse_capture(&mut self,captured:bool){self.mouse_captured=captured;if !captured{self.aiming=false;}self.renderer.set_cursor_visible(!captured);if captured{self.renderer.center_cursor();}}
     pub fn resize(&mut self,width:u32,height:u32){self.renderer.resize(width,height);if height!=0{self.camera.aspect=width as f32/height as f32;}if self.mouse_captured{self.renderer.center_cursor();}}
-    pub fn update_and_render(&mut self){let now=Instant::now();let mut dt=(now-self.last_frame).as_secs_f32();self.last_frame=now;dt=dt.min(MAX_FRAME_DT);if !self.paused{self.update(dt);}self.renderer.render(&self.camera,&self.player,&self.world,&self.npc_manager,&self.vehicle_manager,&self.ui_manager,self.settings_menu,self.settings_selected,self.camera.sensitivity,self.camera.invert_x,self.camera.invert_y);}
+    pub fn update_and_render(&mut self){let now=Instant::now();let mut dt=(now-self.last_frame).as_secs_f32();self.last_frame=now;dt=dt.min(MAX_FRAME_DT);if !self.paused{self.update(dt);}self.renderer.render(&self.camera,&self.player,&self.world,&self.npc_manager,&self.vehicle_manager,&self.ui_manager,self.settings_menu,self.settings_selected,self.camera.sensitivity,self.camera.invert_x,self.camera.invert_y,self.aiming);}
     fn update(&mut self,dt:f32){
         self.game_time+=dt;
         let mut movement=Vec3::ZERO;
