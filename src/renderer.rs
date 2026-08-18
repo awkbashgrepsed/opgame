@@ -47,12 +47,13 @@ impl Renderer {
     pub fn window_center(&self)->(f64,f64){let s=self.window.inner_size();(s.width as f64/2.0,s.height as f64/2.0)}
     pub fn resize(&mut self,width:u32,height:u32){unsafe{gl::Viewport(0,0,width as i32,height as i32);}}
 
-    pub fn render(&self,camera:&Camera,player:&Player,world:&World,npc_manager:&NPCManager,vehicle_manager:&VehicleManager,_ui_manager:&UIManager,settings_menu:bool,selected:usize,sensitivity:f32,invert_x:bool,invert_y:bool){
+    pub fn render(&self,camera:&Camera,player:&Player,world:&World,npc_manager:&NPCManager,vehicle_manager:&VehicleManager,_ui_manager:&UIManager,settings_menu:bool,selected:usize,sensitivity:f32,invert_x:bool,invert_y:bool,aiming:bool){
         unsafe{
             gl::Clear(gl::COLOR_BUFFER_BIT|gl::DEPTH_BUFFER_BIT);
             let projection=camera.projection_matrix();let view=camera.view_matrix();glMatrixMode(GL_PROJECTION);glLoadMatrixf(projection.to_cols_array().as_ptr());glMatrixMode(GL_MODELVIEW);glLoadMatrixf(view.to_cols_array().as_ptr());
             draw_ground();for road in &world.roads{draw_road(road.start,road.end,road.width);}for object in world.objects.values(){draw_building(object.position);}draw_player(player.position,player.rotation);
             if settings_menu { draw_settings_menu(&self.font,selected,self.vsync,sensitivity,invert_x,invert_y); }
+            if aiming && !settings_menu { draw_crosshair(); }
             gl::Flush();winapi::um::wingdi::SwapBuffers(self.hdc);
         }
         log::debug!("Rendered: {} roads, {} objects, {} NPCs, {} vehicles; player at {:?}",world.roads.len(),world.objects.len(),npc_manager.get_npcs().len(),vehicle_manager.get_vehicles().len(),player.position);
@@ -60,6 +61,18 @@ impl Renderer {
 }
 
 impl Drop for Renderer{fn drop(&mut self){unsafe{winapi::um::wingdi::wglMakeCurrent(std::ptr::null_mut(),std::ptr::null_mut());winapi::um::wingdi::wglDeleteContext(self.hglrc);if let RawWindowHandle::Win32(handle)=self.window.raw_window_handle(){winapi::um::winuser::ReleaseDC(handle.hwnd as Hwnd,self.hdc);}}}}
+
+unsafe fn draw_crosshair(){
+    glMatrixMode(GL_PROJECTION);glLoadMatrixf(glam::Mat4::orthographic_rh_gl(-1.0,1.0,-1.0,1.0,-1.0,1.0).to_cols_array().as_ptr());glMatrixMode(GL_MODELVIEW);glLoadMatrixf(glam::Mat4::IDENTITY.to_cols_array().as_ptr());
+    gl::Disable(gl::DEPTH_TEST); glColor3f(1.0,1.0,1.0); glLineWidth(2.0);
+    let gap=0.012; let length=0.035;
+    glBegin(GL_LINES);
+    glVertex3f(-gap-length,0.0,0.0);glVertex3f(-gap,0.0,0.0);
+    glVertex3f(gap,0.0,0.0);glVertex3f(gap+length,0.0,0.0);
+    glVertex3f(0.0,-gap-length,0.0);glVertex3f(0.0,-gap,0.0);
+    glVertex3f(0.0,gap,0.0);glVertex3f(0.0,gap+length,0.0);
+    glEnd(); gl::Enable(gl::DEPTH_TEST);
+}
 
 unsafe fn draw_settings_menu(font:&FontRenderer,selected:usize,vsync:bool,sensitivity:f32,invert_x:bool,invert_y:bool){
     glMatrixMode(GL_PROJECTION);glLoadMatrixf(glam::Mat4::orthographic_rh_gl(-1.0,1.0,-1.0,1.0,-1.0,1.0).to_cols_array().as_ptr());glMatrixMode(GL_MODELVIEW);glLoadMatrixf(glam::Mat4::IDENTITY.to_cols_array().as_ptr());
