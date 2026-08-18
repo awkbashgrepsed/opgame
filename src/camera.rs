@@ -12,6 +12,9 @@ pub struct Camera {
     pub sensitivity: f32,
     pub invert_x: bool,
     pub invert_y: bool,
+    pub shoulder_side: f32,
+    pub shoulder_offset: f32,
+    pub shoulder_smoothness: f32,
 }
 
 impl Camera {
@@ -28,6 +31,9 @@ impl Camera {
             sensitivity: 0.004,
             invert_x: false,
             invert_y: false,
+            shoulder_side: 1.0,
+            shoulder_offset: 1.35,
+            shoulder_smoothness: 12.0,
         }
     }
 
@@ -47,9 +53,18 @@ impl Camera {
         self.pitch = (self.pitch + y).clamp(-1.45, 1.45);
     }
 
+    pub fn toggle_shoulder(&mut self) {
+        self.shoulder_side = -self.shoulder_side;
+    }
+
     pub fn follow(&mut self, target: Vec3) {
         self.target = target;
-        self.position = target - self.forward() * self.distance;
+
+        let desired_position = target - self.forward() * self.distance
+            + self.right() * (self.shoulder_side * self.shoulder_offset);
+
+        let dt_blend = self.shoulder_smoothness.min(1.0);
+        self.position += (desired_position - self.position) * dt_blend;
     }
 
     pub fn zoom(&mut self, amount: f32) { self.distance = (self.distance - amount).clamp(2.5, 15.0); }
