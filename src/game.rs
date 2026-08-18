@@ -11,7 +11,7 @@ use crate::mission::MissionManager;
 use crate::sound::SoundManager;
 use glam::Vec3;
 use std::time::Instant;
-use winit::event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta};
+use winit::event::{ElementState, KeyEvent, MouseButton};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::Window;
 
@@ -59,13 +59,14 @@ impl Game {
                 KeyCode::F9 if pressed=>self.renderer.toggle_vsync(),KeyCode::F11 if pressed=>self.renderer.toggle_fullscreen(),
                 KeyCode::KeyF if pressed=>{self.player.fire_weapon();},KeyCode::KeyR if pressed=>{self.player.reload_weapon();},
                 KeyCode::Digit1 if pressed=>{self.player.select_weapon(0);},KeyCode::Digit2 if pressed&&self.player.weapons.len()>1=>{self.player.select_weapon(1);},KeyCode::Digit3 if pressed&&self.player.weapons.len()>2=>{self.player.select_weapon(2);},
+                KeyCode::PageUp if pressed=>self.camera.zoom(0.5),
+                KeyCode::PageDown if pressed=>self.camera.zoom(-0.5),
                 KeyCode::F10 if pressed=>self.set_mouse_capture(!self.mouse_captured),_=>{}
             }
         }
     }
     pub fn handle_cursor_moved(&mut self,x:f64,y:f64){if !self.mouse_captured||self.settings_menu{return;}let(cx,cy)=self.renderer.window_center();let dx=x-cx;let dy=y-cy;if dx.abs()<0.5&&dy.abs()<0.5{return;}self.camera.rotate(dx as f32*self.camera.sensitivity,dy as f32*self.camera.sensitivity);self.renderer.center_cursor();}
     pub fn handle_mouse_click(&mut self,state:ElementState,button:MouseButton){if self.settings_menu{return;}if state==ElementState::Pressed{if !self.mouse_captured{self.set_mouse_capture(true);return;}match button{MouseButton::Left=>{self.player.fire_weapon();},MouseButton::Right=>{},_=>{}}}}
-    pub fn handle_mouse_wheel(&mut self,delta:MouseScrollDelta){if self.settings_menu{return;}let amount=match delta{MouseScrollDelta::LineDelta(_,y)=>y,MouseScrollDelta::PixelDelta(pos)=>pos.y as f32/10.0};self.camera.zoom(amount*0.5);}
     fn set_mouse_capture(&mut self,captured:bool){self.mouse_captured=captured;self.renderer.set_cursor_visible(!captured);if captured{self.renderer.center_cursor();}}
     pub fn resize(&mut self,width:u32,height:u32){self.renderer.resize(width,height);if height!=0{self.camera.aspect=width as f32/height as f32;}if self.mouse_captured{self.renderer.center_cursor();}}
     pub fn update_and_render(&mut self){let now=Instant::now();let mut dt=(now-self.last_frame).as_secs_f32();self.last_frame=now;dt=dt.min(MAX_FRAME_DT);if !self.paused{self.update(dt);}self.renderer.render(&self.camera,&self.player,&self.world,&self.npc_manager,&self.vehicle_manager,&self.ui_manager,self.settings_menu,self.settings_selected,self.camera.sensitivity,self.camera.invert_x,self.camera.invert_y);}
