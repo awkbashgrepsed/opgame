@@ -14,6 +14,7 @@ pub struct Camera {
     pub invert_y: bool,
     pub shoulder_side: f32,
     pub shoulder_offset: f32,
+    pub aim_distance: f32,
 }
 
 impl Camera {
@@ -30,9 +31,12 @@ impl Camera {
             sensitivity: 0.004,
             invert_x: false,
             invert_y: false,
-            // Positive means the camera is on the player's right side.
+            // Positive = right shoulder, negative = left shoulder.
             shoulder_side: 1.0,
             shoulder_offset: 1.35,
+            // The crosshair/aim point is deliberately in front of the player.
+            // The camera does not look directly at the player's center.
+            aim_distance: 12.0,
         }
     }
 
@@ -65,16 +69,22 @@ impl Camera {
         self.shoulder_side = -self.shoulder_side;
     }
 
-    pub fn follow(&mut self, target: Vec3) {
-        self.target = target;
+    pub fn follow(&mut self, player_position: Vec3) {
+        // The player remains completely stationary in world space. We build
+        // the camera from the player's position and the current viewing axis.
+        // The lateral offset changes only which shoulder is visible.
+        let player_focus = player_position;
+        let view_forward = self.forward();
+        let view_right = self.right();
 
-        // Keep the target/player and aim direction unchanged. Only move the
-        // physical camera sideways around the player's local right axis.
-        // This makes the stationary player appear on the opposite side of
-        // the centered aim point when Tab is pressed.
-        self.position = target
-            - self.forward() * self.distance
-            + self.right() * (self.shoulder_side * self.shoulder_offset);
+        // The look-at point is intentionally separated from the player's
+        // position. This is what produces the RE-style composition where the
+        // player is off-center while the aim point/crosshair stays centered.
+        self.target = player_focus + view_forward * self.aim_distance;
+
+        self.position = player_focus
+            - view_forward * self.distance
+            + view_right * (self.shoulder_side * self.shoulder_offset);
     }
 
     pub fn zoom(&mut self, amount: f32) {
