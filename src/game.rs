@@ -34,8 +34,8 @@ pub struct Game {
 struct InputState{forward:bool,backward:bool,left:bool,right:bool,jump:bool,sprint:bool}
 
 impl Game {
-    pub fn new(window:Window)->Self{
-        let renderer=Renderer::new(window); let player=Player::new(Vec3::new(0.0,0.5,0.0)); let mut camera=Camera::new();
+    pub fn new(window:Window,gl_config:glutin::config::Config)->Self{
+        let renderer=Renderer::new(window,gl_config); let player=Player::new(Vec3::new(0.0,0.5,0.0)); let mut camera=Camera::new();
         let world=World::new(); let npc_manager=NPCManager::new(); let vehicle_manager=VehicleManager::new();
         let combat_system=CombatSystem::new(); let physics_engine=PhysicsEngine::new(); let ui_manager=UIManager::new();
         let mut mission_manager=MissionManager::new(); let sound_manager=SoundManager::new(); mission_manager.create_tutorial_mission();
