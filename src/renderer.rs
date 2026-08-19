@@ -5,6 +5,7 @@ use winit::dpi::PhysicalPosition;
 use winit::window::{Fullscreen, Window};
 use crate::camera::Camera;
 use crate::font::FontRenderer;
+use crate::model;
 use crate::npc::NPCManager;
 use crate::player::Player;
 use crate::ui::UIManager;
@@ -51,7 +52,7 @@ impl Renderer {
         unsafe{
             gl::Clear(gl::COLOR_BUFFER_BIT|gl::DEPTH_BUFFER_BIT);
             let projection=camera.projection_matrix();let view=camera.view_matrix();glMatrixMode(GL_PROJECTION);glLoadMatrixf(projection.to_cols_array().as_ptr());glMatrixMode(GL_MODELVIEW);glLoadMatrixf(view.to_cols_array().as_ptr());
-            draw_ground();for road in &world.roads{draw_road(road.start,road.end,road.width);}for object in world.objects.values(){draw_building(object.position);}draw_player(player.position,player.rotation);
+            draw_ground();for road in &world.roads{draw_road(road.start,road.end,road.width);}for object in world.objects.values(){draw_building(object.position);}model::draw_player(player.position,player.rotation);
             if settings_menu { draw_settings_menu(&self.font,selected,self.vsync,sensitivity,invert_x,invert_y); }
             if aiming && !settings_menu { draw_crosshair(); }
             gl::Flush();winapi::um::wingdi::SwapBuffers(self.hdc);
@@ -99,4 +100,3 @@ unsafe fn draw_settings_menu(font:&FontRenderer,selected:usize,vsync:bool,sensit
 unsafe fn draw_ground(){glColor3f(0.18,0.38,0.18);glBegin(GL_QUADS);glVertex3f(-500.0,0.0,-500.0);glVertex3f(500.0,0.0,-500.0);glVertex3f(500.0,0.0,500.0);glVertex3f(-500.0,0.0,500.0);glEnd();}
 unsafe fn draw_road(start:glam::Vec3,end:glam::Vec3,width:f32){let d=end-start;if d.length_squared()<f32::EPSILON{return;}let dir=d.normalize();let side=glam::Vec3::new(-dir.z,0.0,dir.x)*(width*0.5);glColor3f(0.12,0.12,0.13);glBegin(GL_QUADS);glVertex3f((start-side).x,0.01,(start-side).z);glVertex3f((start+side).x,0.01,(start+side).z);glVertex3f((end+side).x,0.01,(end+side).z);glVertex3f((end-side).x,0.01,(end-side).z);glEnd();glColor3f(0.85,0.78,0.18);glLineWidth(2.0);glBegin(GL_LINES);glVertex3f(start.x,0.025,start.z);glVertex3f(end.x,0.025,end.z);glEnd();}
 unsafe fn draw_building(position:glam::Vec3){let w=14.0;let d=14.0;let h=8.0+((position.x.abs()+position.z.abs())%3.0)*4.0;let x0=position.x-w*0.5;let x1=position.x+w*0.5;let z0=position.z-d*0.5;let z1=position.z+d*0.5;glColor3f(0.55,0.50,0.43);glBegin(GL_QUADS);glVertex3f(x0,0.0,z1);glVertex3f(x1,0.0,z1);glVertex3f(x1,h,z1);glVertex3f(x0,h,z1);glVertex3f(x1,0.0,z0);glVertex3f(x0,0.0,z0);glVertex3f(x0,h,z0);glVertex3f(x1,h,z0);glVertex3f(x0,0.0,z0);glVertex3f(x0,0.0,z1);glVertex3f(x0,h,z1);glVertex3f(x0,h,z0);glVertex3f(x1,0.0,z1);glVertex3f(x1,0.0,z0);glVertex3f(x1,h,z0);glVertex3f(x1,h,z1);glVertex3f(x0,h,z0);glVertex3f(x0,h,z1);glVertex3f(x1,h,z1);glVertex3f(x1,h,z0);glEnd();}
-unsafe fn draw_player(position:glam::Vec3,rotation:f32){let s=0.8;glPushMatrix();glTranslatef(position.x,position.y,position.z);glRotatef(rotation.to_degrees(),0.0,1.0,0.0);glColor3f(0.15,0.35,1.0);glBegin(GL_QUADS);glVertex3f(-s,0.0,s);glVertex3f(s,0.0,s);glVertex3f(s,s*2.25,s);glVertex3f(-s,s*2.25,s);glEnd();glColor3f(0.05,0.85,0.9);glBegin(GL_QUADS);glVertex3f(s,0.0,-s);glVertex3f(-s,0.0,-s);glVertex3f(-s,s*2.25,-s);glVertex3f(s,s*2.25,-s);glEnd();glColor3f(1.0,0.15,0.12);glBegin(GL_QUADS);glVertex3f(s,0.0,s);glVertex3f(s,0.0,-s);glVertex3f(s,s*2.25,-s);glVertex3f(s,s*2.25,s);glEnd();glColor3f(1.0,0.55,0.08);glBegin(GL_QUADS);glVertex3f(-s,0.0,-s);glVertex3f(-s,0.0,s);glVertex3f(-s,s*2.25,s);glVertex3f(-s,s*2.25,-s);glEnd();glColor3f(0.15,0.9,0.2);glBegin(GL_QUADS);glVertex3f(-s,s*2.25,s);glVertex3f(s,s*2.25,s);glVertex3f(s,s*2.25,-s);glVertex3f(-s,s*2.25,-s);glEnd();glColor3f(0.8,0.1,0.75);glBegin(GL_QUADS);glVertex3f(-s,0.0,-s);glVertex3f(s,0.0,-s);glVertex3f(s,0.0,s);glVertex3f(-s,0.0,s);glEnd();glPopMatrix();}
