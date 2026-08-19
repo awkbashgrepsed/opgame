@@ -3,15 +3,7 @@ use std::fs;
 use std::path::Path;
 use std::os::raw::c_void;
 
-#[link(name = "opengl32")]
-extern "system" {
-    fn glRasterPos2f(x: f32, y: f32);
-    fn glPixelZoom(xfactor: f32, yfactor: f32);
-    fn glDrawPixels(width: i32, height: i32, format: u32, type_: u32, pixels: *const c_void);
-}
-
-const GL_RGBA: u32 = 0x1908;
-const GL_UNSIGNED_BYTE: u32 = 0x1401;
+use crate::gl;
 
 pub struct FontRenderer {
     font: Font,
@@ -25,6 +17,11 @@ impl FontRenderer {
             "assets/fonts/DejaVuSans.ttf",
             "C:\\Windows\\Fonts\\segoeui.ttf",
             "C:\\Windows\\Fonts\\arial.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/TTF/DejaVuSans.ttf",
+            "/usr/share/fonts/liberation/LiberationSans-Regular.ttf",
+            "/System/Library/Fonts/Supplemental/Arial.ttf",
+            "/System/Library/Fonts/Helvetica.ttc",
         ];
         let path = candidates.iter().find(|p| Path::new(p).exists())
             .ok_or_else(|| "No font found. Put a TTF in assets/fonts/SegoeUI.ttf".to_string())?;
@@ -70,16 +67,16 @@ impl FontRenderer {
         }
 
         unsafe {
-            glRasterPos2f(x, y);
-            glPixelZoom(1.0, -1.0);
-            glDrawPixels(
+            gl::RasterPos2f(x, y);
+            gl::PixelZoom(1.0, -1.0);
+            gl::DrawPixels(
                 width as i32,
                 height as i32,
-                GL_RGBA,
-                GL_UNSIGNED_BYTE,
+                gl::RGBA,
+                gl::UNSIGNED_BYTE,
                 pixels.as_ptr() as *const c_void,
             );
-            glPixelZoom(1.0, 1.0);
+            gl::PixelZoom(1.0, 1.0);
         }
     }
 }
