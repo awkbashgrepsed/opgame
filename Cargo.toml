@@ -20,3 +20,4 @@ glutin-winit = "0.4"
 gl = "0.14"
 winapi = { version = "0.3", features = ["wingdi", "winuser", "libloaderapi"] }
 fontdue = "0.9"
+gltf = { version = "1.4", features = ["import"] }
