@@ -2,6 +2,8 @@ use std::sync::OnceLock;
 
 use glam::Vec3;
 
+use crate::gl_compat::{glBegin, glColor4f, glEnd, glPopMatrix, glPushMatrix, glRotatef, glScalef, glTranslatef, glVertex3f, GL_TRIANGLES};
+
 struct ModelMesh {
     positions: Vec<Vec3>,
     indices: Vec<u32>,
@@ -62,23 +64,23 @@ pub unsafe fn draw_player(position: Vec3, rotation: f32) {
     // player's approximate footprint while using the real model.
     const SCALE: f32 = 0.8;
 
-    gl::PushMatrix();
-    gl::Translatef(position.x, position.y, position.z);
-    gl::Rotatef(rotation.to_degrees(), 0.0, 1.0, 0.0);
-    gl::Scalef(SCALE, SCALE, SCALE);
+    glPushMatrix();
+    glTranslatef(position.x, position.y, position.z);
+    glRotatef(rotation.to_degrees(), 0.0, 1.0, 0.0);
+    glScalef(SCALE, SCALE, SCALE);
 
     for mesh in meshes {
-        gl::Color4f(mesh.color[0], mesh.color[1], mesh.color[2], mesh.color[3]);
-        gl::Begin(gl::TRIANGLES);
+        glColor4f(mesh.color[0], mesh.color[1], mesh.color[2], mesh.color[3]);
+        glBegin(GL_TRIANGLES);
 
         for &index in &mesh.indices {
             if let Some(p) = mesh.positions.get(index as usize) {
-                gl::Vertex3f(p.x, p.y, p.z);
+                glVertex3f(p.x, p.y, p.z);
             }
         }
 
-        gl::End();
+        glEnd();
     }
 
-    gl::PopMatrix();
+    glPopMatrix();
 }
