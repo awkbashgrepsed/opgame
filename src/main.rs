@@ -3,6 +3,7 @@ mod camera;
 mod player;
 mod entity;
 mod renderer;
+mod model;
 mod world;
 mod npc;
 mod vehicle;
