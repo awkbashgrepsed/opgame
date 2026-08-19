@@ -4,6 +4,7 @@ mod player;
 mod entity;
 mod renderer;
 mod model;
+mod gl_compat;
 mod world;
 mod npc;
 mod vehicle;
