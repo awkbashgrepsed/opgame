@@ -2,6 +2,7 @@ use std::sync::OnceLock;
 
 use glam::Vec3;
 
+use crate::assets;
 use crate::gl;
 
 struct ModelMesh {
@@ -14,9 +15,15 @@ static PLAYER_MODEL: OnceLock<Vec<ModelMesh>> = OnceLock::new();
 
 fn load_player_model() -> &'static Vec<ModelMesh> {
     PLAYER_MODEL.get_or_init(|| {
-        let bytes = include_bytes!("../assets/player.glb");
-        let (document, buffers, _images) = gltf::import_slice(bytes)
-            .unwrap_or_else(|e| panic!("Failed to load assets/player.glb: {e}"));
+        let path = assets::path("models/player.glb");
+        if !path.is_file() {
+            panic!("Player model not found: {}", path.display());
+        }
+
+        // The model is deliberately read from disk. Nothing from the GLB is
+        // embedded into the executable; packaged builds keep it beside the game.
+        let (document, buffers, _images) = gltf::import(&path)
+            .unwrap_or_else(|e| panic!("Failed to load {}: {e}", path.display()));
 
         let mut meshes = Vec::new();
 
@@ -26,7 +33,7 @@ fn load_player_model() -> &'static Vec<ModelMesh> {
 
                 let positions: Vec<Vec3> = reader
                     .read_positions()
-                    .unwrap_or_else(|| panic!("assets/player.glb contains a primitive without positions"))
+                    .unwrap_or_else(|| panic!("{} contains a primitive without positions", path.display()))
                     .map(|p| Vec3::new(p[0], p[1], p[2]))
                     .collect();
 
@@ -49,10 +56,10 @@ fn load_player_model() -> &'static Vec<ModelMesh> {
         }
 
         if meshes.is_empty() {
-            panic!("assets/player.glb contains no mesh primitives");
+            panic!("{} contains no mesh primitives", path.display());
         }
 
-        log::info!("Loaded player.glb: {} mesh primitive(s)", meshes.len());
+        log::info!("Loaded player model from {}: {} mesh primitive(s)", path.display(), meshes.len());
         meshes
     })
 }
@@ -60,8 +67,7 @@ fn load_player_model() -> &'static Vec<ModelMesh> {
 pub unsafe fn draw_player(position: Vec3, rotation: f32) {
     let meshes = load_player_model();
 
-    // Blender's default cube is 2 units across. Keep the first placeholder
-    // player's approximate footprint while using the real model.
+    // Keep the prototype player's approximate footprint while using the real model.
     const SCALE: f32 = 0.8;
 
     gl::PushMatrix();
