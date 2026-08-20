@@ -86,6 +86,7 @@ impl Renderer {
             log::warn!("Could not change the swap interval: {}", e);
         }
     }
+
     pub fn toggle_vsync(&mut self){self.vsync=!self.vsync;self.apply_vsync();log::info!("VSync {}",if self.vsync{"enabled"}else{"disabled"});}
     pub fn toggle_fullscreen(&self){if self.window.fullscreen().is_some(){self.window.set_fullscreen(None);}else{self.window.set_fullscreen(Some(Fullscreen::Borderless(None)));}self.window.request_redraw();}
     pub fn set_cursor_visible(&self,visible:bool){self.window.set_cursor_visible(visible);}
@@ -101,13 +102,20 @@ impl Renderer {
         unsafe{
             gl::Clear(gl::COLOR_BUFFER_BIT|gl::DEPTH_BUFFER_BIT);
             let projection=camera.projection_matrix();let view=camera.view_matrix();gl::MatrixMode(gl::PROJECTION);gl::LoadMatrixf(projection.to_cols_array().as_ptr());gl::MatrixMode(gl::MODELVIEW);gl::LoadMatrixf(view.to_cols_array().as_ptr());
-            draw_ground();for road in &world.roads{draw_road(road.start,road.end,road.width);}for object in world.objects.values(){draw_building(object.position);}model::draw_player(player.position,player.rotation);
+
+            // The world is now authored in Blender and loaded as an external GLB.
+            // The old hard-coded ground, roads, and buildings are intentionally no
+            // longer rendered; World still retains those structures for gameplay
+            // systems until their collision/navigation data is replaced too.
+            model::draw_map();
+            model::draw_player(player.position,player.rotation);
+
             if settings_menu { draw_settings_menu(&self.font,selected,self.vsync,sensitivity,invert_x,invert_y); }
             if aiming && !settings_menu { draw_crosshair(); }
             gl::Flush();
         }
         if let Err(e)=self.surface.swap_buffers(&self.context){log::error!("Failed to swap buffers: {}",e);}
-        log::debug!("Rendered: {} roads, {} objects, {} NPCs, {} vehicles; player at {:?}",world.roads.len(),world.objects.len(),npc_manager.get_npcs().len(),vehicle_manager.get_vehicles().len(),player.position);
+        log::debug!("Rendered external map; {} NPCs, {} vehicles; player at {:?}",npc_manager.get_npcs().len(),vehicle_manager.get_vehicles().len(),player.position);
     }
 }
 
@@ -144,7 +152,3 @@ unsafe fn draw_settings_menu(font:&FontRenderer,selected:usize,vsync:bool,sensit
     font.draw_text("ESC: close",0.25,-0.84,[170,170,180,255]);
     gl::Disable(gl::BLEND); gl::Enable(gl::DEPTH_TEST);
 }
-
-unsafe fn draw_ground(){gl::Color3f(0.18,0.38,0.18);gl::Begin(gl::QUADS);gl::Vertex3f(-500.0,0.0,-500.0);gl::Vertex3f(500.0,0.0,-500.0);gl::Vertex3f(500.0,0.0,500.0);gl::Vertex3f(-500.0,0.0,500.0);gl::End();}
-unsafe fn draw_road(start:glam::Vec3,end:glam::Vec3,width:f32){let d=end-start;if d.length_squared()<f32::EPSILON{return;}let dir=d.normalize();let side=glam::Vec3::new(-dir.z,0.0,dir.x)*(width*0.5);gl::Color3f(0.12,0.12,0.13);gl::Begin(gl::QUADS);gl::Vertex3f((start-side).x,0.01,(start-side).z);gl::Vertex3f((start+side).x,0.01,(start+side).z);gl::Vertex3f((end+side).x,0.01,(end+side).z);gl::Vertex3f((end-side).x,0.01,(end-side).z);gl::End();gl::Color3f(0.85,0.78,0.18);gl::LineWidth(2.0);gl::Begin(gl::LINES);gl::Vertex3f(start.x,0.025,start.z);gl::Vertex3f(end.x,0.025,end.z);gl::End();}
-unsafe fn draw_building(position:glam::Vec3){let w=14.0;let d=14.0;let h=8.0+((position.x.abs()+position.z.abs())%3.0)*4.0;let x0=position.x-w*0.5;let x1=position.x+w*0.5;let z0=position.z-d*0.5;let z1=position.z+d*0.5;gl::Color3f(0.55,0.50,0.43);gl::Begin(gl::QUADS);gl::Vertex3f(x0,0.0,z1);gl::Vertex3f(x1,0.0,z1);gl::Vertex3f(x1,h,z1);gl::Vertex3f(x0,h,z1);gl::Vertex3f(x1,0.0,z0);gl::Vertex3f(x0,0.0,z0);gl::Vertex3f(x0,h,z0);gl::Vertex3f(x1,h,z0);gl::Vertex3f(x0,0.0,z0);gl::Vertex3f(x0,0.0,z1);gl::Vertex3f(x0,h,z1);gl::Vertex3f(x0,h,z0);gl::Vertex3f(x1,0.0,z1);gl::Vertex3f(x1,0.0,z0);gl::Vertex3f(x1,h,z0);gl::Vertex3f(x1,h,z1);gl::Vertex3f(x0,h,z0);gl::Vertex3f(x0,h,z1);gl::Vertex3f(x1,h,z1);gl::Vertex3f(x1,h,z0);gl::End();}
