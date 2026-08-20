@@ -34,26 +34,20 @@ unsafe fn load_texture(image: &gltf::image::Data) -> u32 {
                 rgba.extend_from_slice(&[pixel[0], pixel[1], pixel[2], 255]);
             }
         }
-        gltf::image::Format::R8G8B8A8 => {
-            rgba.extend_from_slice(&image.pixels);
-        }
-        _ => {
-            panic!(
-                "Unsupported GLB image format {:?}; export textures as 8-bit PNG/JPEG data",
-                image.format
-            );
-        }
+        gltf::image::Format::R8G8B8A8 => rgba.extend_from_slice(&image.pixels),
+        _ => panic!(
+            "Unsupported GLB image format {:?}; export textures as 8-bit PNG/JPEG data",
+            image.format
+        ),
     }
 
     let mut texture = 0;
     gl::GenTextures(1, &mut texture);
     gl::BindTexture(gl::TEXTURE_2D, texture);
-
     gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
     gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
     gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
     gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
-
     gl::PixelStorei(gl::UNPACK_ALIGNMENT, 1);
     gl::TexImage2D(
         gl::TEXTURE_2D,
@@ -66,9 +60,7 @@ unsafe fn load_texture(image: &gltf::image::Data) -> u32 {
         gl::UNSIGNED_BYTE,
         rgba.as_ptr() as *const std::ffi::c_void,
     );
-
     gl::BindTexture(gl::TEXTURE_2D, 0);
-
     texture
 }
 
@@ -78,16 +70,12 @@ unsafe fn load_model(relative_path: &str, label: &str) -> Vec<ModelMesh> {
         panic!("{label} model not found: {}", path.display());
     }
 
-    // Models are deliberately read from disk. Nothing from the GLB is embedded
-    // into the executable; packaged builds keep it beside the game.
     let (document, buffers, images) = gltf::import(&path)
         .unwrap_or_else(|e| panic!("Failed to load {}: {e}", path.display()));
 
     let mut meshes = Vec::new();
     let mut texture_cache: HashMap<usize, u32> = HashMap::new();
 
-    // GLTF stores mesh data separately from node transforms. Walk every scene
-    // node so Blender object translation/rotation/scale are preserved.
     for scene in document.scenes() {
         for node in scene.nodes() {
             load_node(
@@ -126,9 +114,6 @@ unsafe fn load_node(
 ) {
     let local_transform = Mat4::from_cols_array_2d(&node.transform().matrix());
     let transform = parent_transform * local_transform;
-
-    // Normal vectors need the inverse-transpose of the model transform so
-    // non-uniform Blender scaling does not distort them.
     let normal_matrix = transform.inverse().transpose();
 
     if let Some(mesh) = node.mesh() {
@@ -137,12 +122,7 @@ unsafe fn load_node(
 
             let positions: Vec<Vec3> = reader
                 .read_positions()
-                .unwrap_or_else(|| {
-                    panic!(
-                        "{} contains a primitive without positions",
-                        path.display()
-                    )
-                })
+                .unwrap_or_else(|| panic!("{} contains a primitive without positions", path.display()))
                 .map(|p| {
                     let position = transform * Vec4::new(p[0], p[1], p[2], 1.0);
                     Vec3::new(position.x, position.y, position.z)
@@ -169,8 +149,7 @@ unsafe fn load_node(
                 None => (0..positions.len() as u32).collect(),
             };
 
-            let material = primitive.material();
-            let pbr = material.pbr_metallic_roughness();
+            let pbr = primitive.material().pbr_metallic_roughness();
             let color = pbr.base_color_factor();
 
             let texture = pbr.base_color_texture().map(|info| {
@@ -196,15 +175,7 @@ unsafe fn load_node(
     }
 
     for child in node.children() {
-        load_node(
-            child,
-            transform,
-            buffers,
-            images,
-            texture_cache,
-            meshes,
-            path,
-        );
+        load_node(child, transform, buffers, images, texture_cache, meshes, path);
     }
 }
 
@@ -219,38 +190,50 @@ fn load_map_model() -> &'static Vec<ModelMesh> {
     MAP_MODEL.get_or_init(|| unsafe { load_model("models/environment/map.glb", "map") })
 }
 
+// Explicit per-vertex lighting. This is Gouraud shading: lighting is evaluated
+// once for each vertex and OpenGL's GL_SMOOTH interpolation produces the final
+// color across the triangle. Doing it here avoids relying on driver-specific
+// fixed-function material/lighting behavior while retaining the GL 2.1 renderer.
+fn gouraud_color(base: [f32; 4], normal: Vec3) -> [f32; 4] {
+    let n = normal.normalize_or_zero();
+    let light_dir = Vec3::new(-0.55, 0.85, 0.45).normalize();
+    let ambient = 0.22_f32;
+    let diffuse = n.dot(light_dir).max(0.0) * 0.78;
+    let light = (ambient + diffuse).min(1.0);
+
+    [
+        (base[0] * light).min(1.0),
+        (base[1] * light).min(1.0),
+        (base[2] * light).min(1.0),
+        base[3],
+    ]
+}
+
 unsafe fn draw_meshes(meshes: &[ModelMesh]) {
     gl::Enable(gl::TEXTURE_2D);
+    gl::ShadeModel(gl::SMOOTH);
 
     for mesh in meshes {
-        gl::Color4f(
-            mesh.color[0],
-            mesh.color[1],
-            mesh.color[2],
-            mesh.color[3],
-        );
-
         match mesh.texture {
-            Some(texture) => {
-                gl::BindTexture(gl::TEXTURE_2D, texture);
-            }
-            None => {
-                gl::BindTexture(gl::TEXTURE_2D, 0);
-            }
+            Some(texture) => gl::BindTexture(gl::TEXTURE_2D, texture),
+            None => gl::BindTexture(gl::TEXTURE_2D, 0),
         }
 
         gl::Begin(gl::TRIANGLES);
 
         for &index in &mesh.indices {
-            if let Some(p) = mesh.positions.get(index as usize) {
-                if let Some(normal) = mesh.normals.get(index as usize) {
-                    gl::Normal3f(normal.x, normal.y, normal.z);
-                }
+            let i = index as usize;
+            if let (Some(p), Some(normal)) = (mesh.positions.get(i), mesh.normals.get(i)) {
+                // Set a different lit color at every vertex. With GL_SMOOTH this
+                // is interpolated across the triangle: actual Gouraud shading.
+                let lit = gouraud_color(mesh.color, *normal);
+                gl::Color4f(lit[0], lit[1], lit[2], lit[3]);
 
-                if let Some(uv) = mesh.uvs.get(index as usize) {
+                if let Some(uv) = mesh.uvs.get(i) {
                     gl::TexCoord2f(uv.x, uv.y);
                 }
 
+                gl::Normal3f(normal.x, normal.y, normal.z);
                 gl::Vertex3f(p.x, p.y, p.z);
             }
         }
@@ -264,8 +247,6 @@ unsafe fn draw_meshes(meshes: &[ModelMesh]) {
 
 pub unsafe fn draw_player(position: Vec3, rotation: f32) {
     let meshes = load_player_model();
-
-    // Keep the prototype player's approximate footprint while using the real model.
     const SCALE: f32 = 0.8;
 
     gl::PushMatrix();
@@ -278,9 +259,6 @@ pub unsafe fn draw_player(position: Vec3, rotation: f32) {
 
 pub unsafe fn draw_map() {
     let meshes = load_map_model();
-
-    // The Blender scene is authored in world space. Node transforms were
-    // applied while loading, so the map receives no additional scale.
     gl::PushMatrix();
     draw_meshes(meshes);
     gl::PopMatrix();
