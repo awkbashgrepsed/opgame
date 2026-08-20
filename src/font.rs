@@ -3,6 +3,7 @@ use std::fs;
 use std::path::Path;
 use std::os::raw::c_void;
 
+use crate::assets;
 use crate::gl;
 
 pub struct FontRenderer {
@@ -12,20 +13,38 @@ pub struct FontRenderer {
 
 impl FontRenderer {
     pub fn new(size: f32) -> Result<Self, String> {
-        let candidates = [
-            "assets/fonts/SegoeUI.ttf",
-            "assets/fonts/DejaVuSans.ttf",
-            "C:\\Windows\\Fonts\\segoeui.ttf",
-            "C:\\Windows\\Fonts\\arial.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/usr/share/fonts/TTF/DejaVuSans.ttf",
-            "/usr/share/fonts/liberation/LiberationSans-Regular.ttf",
-            "/System/Library/Fonts/Supplemental/Arial.ttf",
-            "/System/Library/Fonts/Helvetica.ttc",
+        let runtime_candidates = [
+            "fonts/SegoeUI.ttf",
+            "fonts/DejaVuSans.ttf",
         ];
-        let path = candidates.iter().find(|p| Path::new(p).exists())
-            .ok_or_else(|| "No font found. Put a TTF in assets/fonts/SegoeUI.ttf".to_string())?;
-        let bytes = fs::read(path).map_err(|e| format!("Could not read font {}: {}", path, e))?;
+
+        let mut path = None;
+        for relative in runtime_candidates {
+            let candidate = assets::path(relative);
+            if candidate.exists() {
+                path = Some(candidate);
+                break;
+            }
+        }
+
+        let path = path.or_else(|| {
+            [
+                "C:\\Windows\\Fonts\\segoeui.ttf",
+                "C:\\Windows\\Fonts\\arial.ttf",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                "/usr/share/fonts/TTF/DejaVuSans.ttf",
+                "/usr/share/fonts/liberation/LiberationSans-Regular.ttf",
+                "/System/Library/Fonts/Supplemental/Arial.ttf",
+                "/System/Library/Fonts/Helvetica.ttc",
+            ]
+            .iter()
+            .map(Path::new)
+            .find(|p| p.exists())
+            .map(Path::to_path_buf)
+        }).ok_or_else(|| "No font found. Put a TTF in the packaged assets/fonts directory".to_string())?;
+
+        let bytes = fs::read(&path)
+            .map_err(|e| format!("Could not read font {}: {}", path.display(), e))?;
         let font = Font::from_bytes(bytes, fontdue::FontSettings::default())
             .map_err(|e| format!("Could not load font: {}", e))?;
         Ok(Self { font, size })
