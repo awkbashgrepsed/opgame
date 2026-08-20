@@ -2,11 +2,10 @@ OPGAME UI FONT
 
 Put a TrueType font at:
 
-    assets/fonts/SegoeUI.ttf
+    data/fonts/SegoeUI.ttf
 
-The game will use that font first. If it is not present, Windows builds fall back to:
+The Python build script copies this directory to the packaged runtime:
 
-    C:\Windows\Fonts\segoeui.ttf
-    C:\Windows\Fonts\arial.ttf
+    dist/assets/fonts/SegoeUI.ttf
 
-For future cross-platform releases, ship a freely redistributable TTF in this directory.
+The game loads the packaged font from assets/fonts/ first. If no shipped font is present, it falls back to a platform system font.
