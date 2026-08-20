@@ -66,12 +66,30 @@ impl Renderer {
             gl::Enable(gl::DEPTH_TEST);
             gl::DepthFunc(gl::LEQUAL);
             gl::ClearColor(0.38, 0.58, 0.82, 1.0);
+
+            // Classic fixed-function Gouraud shading. GL_SMOOTH makes OpenGL
+            // interpolate the lighting result across each triangle from the
+            // per-vertex normals supplied by model.rs.
+            gl::ShadeModel(gl::SMOOTH);
+            gl::Enable(gl::LIGHTING);
+            gl::Enable(gl::LIGHT0);
+            gl::Enable(gl::COLOR_MATERIAL);
+            gl::ColorMaterial(gl::FRONT_AND_BACK, gl::AMBIENT_AND_DIFFUSE);
+            gl::Enable(gl::NORMALIZE);
+
             let size = window.inner_size();
             gl::Viewport(0, 0, size.width as i32, size.height as i32);
         }
 
-        let font = FontRenderer::new(26.0).unwrap_or_else(|e| panic!("Font initialization failed: {}", e));
-        let renderer = Self { window, surface, context, vsync: true, font };
+        let font = FontRenderer::new(26.0)
+            .unwrap_or_else(|e| panic!("Font initialization failed: {}", e));
+        let renderer = Self {
+            window,
+            surface,
+            context,
+            vsync: true,
+            font,
+        };
         renderer.apply_vsync();
         renderer
     }
@@ -87,68 +105,210 @@ impl Renderer {
         }
     }
 
-    pub fn toggle_vsync(&mut self){self.vsync=!self.vsync;self.apply_vsync();log::info!("VSync {}",if self.vsync{"enabled"}else{"disabled"});}
-    pub fn toggle_fullscreen(&self){if self.window.fullscreen().is_some(){self.window.set_fullscreen(None);}else{self.window.set_fullscreen(Some(Fullscreen::Borderless(None)));}self.window.request_redraw();}
-    pub fn set_cursor_visible(&self,visible:bool){self.window.set_cursor_visible(visible);}
-    pub fn center_cursor(&self){let s=self.window.inner_size();let p=PhysicalPosition::new(s.width as f64/2.0,s.height as f64/2.0);let _=self.window.set_cursor_position(p);}
-    pub fn window_center(&self)->(f64,f64){let s=self.window.inner_size();(s.width as f64/2.0,s.height as f64/2.0)}
-    pub fn resize(&mut self,width:u32,height:u32){
-        let (Some(width),Some(height))=(NonZeroU32::new(width),NonZeroU32::new(height)) else { return; };
-        self.surface.resize(&self.context,width,height);
-        unsafe{gl::Viewport(0,0,width.get() as i32,height.get() as i32);}
+    pub fn toggle_vsync(&mut self) {
+        self.vsync = !self.vsync;
+        self.apply_vsync();
+        log::info!(
+            "VSync {}",
+            if self.vsync { "enabled" } else { "disabled" }
+        );
     }
 
-    pub fn render(&self,camera:&Camera,player:&Player,world:&World,npc_manager:&NPCManager,vehicle_manager:&VehicleManager,_ui_manager:&UIManager,settings_menu:bool,selected:usize,sensitivity:f32,invert_x:bool,invert_y:bool,aiming:bool){
-        unsafe{
-            gl::Clear(gl::COLOR_BUFFER_BIT|gl::DEPTH_BUFFER_BIT);
-            let projection=camera.projection_matrix();let view=camera.view_matrix();gl::MatrixMode(gl::PROJECTION);gl::LoadMatrixf(projection.to_cols_array().as_ptr());gl::MatrixMode(gl::MODELVIEW);gl::LoadMatrixf(view.to_cols_array().as_ptr());
+    pub fn toggle_fullscreen(&self) {
+        if self.window.fullscreen().is_some() {
+            self.window.set_fullscreen(None);
+        } else {
+            self.window
+                .set_fullscreen(Some(Fullscreen::Borderless(None)));
+        }
+        self.window.request_redraw();
+    }
 
-            // The world is now authored in Blender and loaded as an external GLB.
-            // The old hard-coded ground, roads, and buildings are intentionally no
-            // longer rendered; World still retains those structures for gameplay
-            // systems until their collision/navigation data is replaced too.
+    pub fn set_cursor_visible(&self, visible: bool) {
+        self.window.set_cursor_visible(visible);
+    }
+
+    pub fn center_cursor(&self) {
+        let s = self.window.inner_size();
+        let p = PhysicalPosition::new(s.width as f64 / 2.0, s.height as f64 / 2.0);
+        let _ = self.window.set_cursor_position(p);
+    }
+
+    pub fn window_center(&self) -> (f64, f64) {
+        let s = self.window.inner_size();
+        (s.width as f64 / 2.0, s.height as f64 / 2.0)
+    }
+
+    pub fn resize(&mut self, width: u32, height: u32) {
+        let (Some(width), Some(height)) = (NonZeroU32::new(width), NonZeroU32::new(height))
+        else {
+            return;
+        };
+        self.surface.resize(&self.context, width, height);
+        unsafe {
+            gl::Viewport(0, 0, width.get() as i32, height.get() as i32);
+        }
+    }
+
+    pub fn render(
+        &self,
+        camera: &Camera,
+        player: &Player,
+        world: &World,
+        npc_manager: &NPCManager,
+        vehicle_manager: &VehicleManager,
+        _ui_manager: &UIManager,
+        settings_menu: bool,
+        selected: usize,
+        sensitivity: f32,
+        invert_x: bool,
+        invert_y: bool,
+        aiming: bool,
+    ) {
+        unsafe {
+            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+            let projection = camera.projection_matrix();
+            let view = camera.view_matrix();
+            gl::MatrixMode(gl::PROJECTION);
+            gl::LoadMatrixf(projection.to_cols_array().as_ptr());
+            gl::MatrixMode(gl::MODELVIEW);
+            gl::LoadMatrixf(view.to_cols_array().as_ptr());
+
+            // Position the light after loading the camera matrix so the light
+            // follows the game world instead of being tied to screen space.
+            let light_position: [f32; 4] = [-20.0, 30.0, 20.0, 1.0];
+            let light_ambient: [f32; 4] = [0.22, 0.22, 0.22, 1.0];
+            let light_diffuse: [f32; 4] = [0.90, 0.90, 0.90, 1.0];
+            gl::Lightfv(gl::LIGHT0, gl::POSITION, light_position.as_ptr());
+            gl::Lightfv(gl::LIGHT0, gl::AMBIENT, light_ambient.as_ptr());
+            gl::Lightfv(gl::LIGHT0, gl::DIFFUSE, light_diffuse.as_ptr());
+
+            // The world is authored in Blender and loaded as an external GLB.
+            // Gouraud shading is active for both the map and player models.
             model::draw_map();
-            model::draw_player(player.position,player.rotation);
+            model::draw_player(player.position, player.rotation);
 
-            if settings_menu { draw_settings_menu(&self.font,selected,self.vsync,sensitivity,invert_x,invert_y); }
-            if aiming && !settings_menu { draw_crosshair(); }
+            // UI is drawn in screen space and should not be affected by 3D lighting.
+            gl::Disable(gl::LIGHTING);
+
+            if settings_menu {
+                draw_settings_menu(
+                    &self.font,
+                    selected,
+                    self.vsync,
+                    sensitivity,
+                    invert_x,
+                    invert_y,
+                );
+            }
+            if aiming && !settings_menu {
+                draw_crosshair();
+            }
+
+            gl::Enable(gl::LIGHTING);
             gl::Flush();
         }
-        if let Err(e)=self.surface.swap_buffers(&self.context){log::error!("Failed to swap buffers: {}",e);}
-        log::debug!("Rendered external map; {} NPCs, {} vehicles; player at {:?}",npc_manager.get_npcs().len(),vehicle_manager.get_vehicles().len(),player.position);
+        if let Err(e) = self.surface.swap_buffers(&self.context) {
+            log::error!("Failed to swap buffers: {}", e);
+        }
+        log::debug!(
+            "Rendered external map; {} NPCs, {} vehicles; player at {:?}",
+            npc_manager.get_npcs().len(),
+            vehicle_manager.get_vehicles().len(),
+            player.position
+        );
     }
 }
 
-unsafe fn draw_crosshair(){
-    gl::MatrixMode(gl::PROJECTION);gl::LoadMatrixf(glam::Mat4::orthographic_rh_gl(-1.0,1.0,-1.0,1.0,-1.0,1.0).to_cols_array().as_ptr());gl::MatrixMode(gl::MODELVIEW);gl::LoadMatrixf(glam::Mat4::IDENTITY.to_cols_array().as_ptr());
-    gl::Disable(gl::DEPTH_TEST); gl::Color3f(1.0,1.0,1.0); gl::LineWidth(2.0);
-    let gap=0.012; let length=0.035;
+unsafe fn draw_crosshair() {
+    gl::MatrixMode(gl::PROJECTION);
+    gl::LoadMatrixf(
+        glam::Mat4::orthographic_rh_gl(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0)
+            .to_cols_array()
+            .as_ptr(),
+    );
+    gl::MatrixMode(gl::MODELVIEW);
+    gl::LoadMatrixf(glam::Mat4::IDENTITY.to_cols_array().as_ptr());
+    gl::Disable(gl::DEPTH_TEST);
+    gl::Color3f(1.0, 1.0, 1.0);
+    gl::LineWidth(2.0);
+    let gap = 0.012;
+    let length = 0.035;
     gl::Begin(gl::LINES);
-    gl::Vertex3f(-gap-length,0.0,0.0);gl::Vertex3f(-gap,0.0,0.0);
-    gl::Vertex3f(gap,0.0,0.0);gl::Vertex3f(gap+length,0.0,0.0);
-    gl::Vertex3f(0.0,-gap-length,0.0);gl::Vertex3f(0.0,-gap,0.0);
-    gl::Vertex3f(0.0,gap,0.0);gl::Vertex3f(0.0,gap+length,0.0);
-    gl::End(); gl::Enable(gl::DEPTH_TEST);
+    gl::Vertex3f(-gap - length, 0.0, 0.0);
+    gl::Vertex3f(-gap, 0.0, 0.0);
+    gl::Vertex3f(gap, 0.0, 0.0);
+    gl::Vertex3f(gap + length, 0.0, 0.0);
+    gl::Vertex3f(0.0, -gap - length, 0.0);
+    gl::Vertex3f(0.0, -gap, 0.0);
+    gl::Vertex3f(0.0, gap, 0.0);
+    gl::Vertex3f(0.0, gap + length, 0.0);
+    gl::End();
+    gl::Enable(gl::DEPTH_TEST);
 }
 
-unsafe fn draw_settings_menu(font:&FontRenderer,selected:usize,vsync:bool,sensitivity:f32,invert_x:bool,invert_y:bool){
-    gl::MatrixMode(gl::PROJECTION);gl::LoadMatrixf(glam::Mat4::orthographic_rh_gl(-1.0,1.0,-1.0,1.0,-1.0,1.0).to_cols_array().as_ptr());gl::MatrixMode(gl::MODELVIEW);gl::LoadMatrixf(glam::Mat4::IDENTITY.to_cols_array().as_ptr());
-    gl::Disable(gl::DEPTH_TEST); gl::Enable(gl::BLEND); gl::BlendFunc(gl::SRC_ALPHA,gl::ONE_MINUS_SRC_ALPHA);
-    gl::Color4f(0.015,0.02,0.03,0.82);gl::Begin(gl::QUADS);gl::Vertex3f(-1.0,-1.0,0.0);gl::Vertex3f(1.0,-1.0,0.0);gl::Vertex3f(1.0,1.0,0.0);gl::Vertex3f(-1.0,1.0,0.0);gl::End();
-    let labels=["VSync","Mouse Sensitivity","Invert X","Invert Y","Fullscreen","QUIT GAME"];
-    let sensitivity_text=format!("{:.3}",sensitivity);
-    let values=[if vsync{"ON"}else{"OFF"},sensitivity_text.as_str(),if invert_x{"ON"}else{"OFF"},if invert_y{"ON"}else{"OFF"},"F11",""];
-    let rows=[0.36,0.17,-0.02,-0.21,-0.40,-0.62];
-    font.draw_text("SETTINGS", -0.22, 0.68, [255,255,255,255]);
-    for i in 0..labels.len(){
-        let y=rows[i]; let active=i==selected;
-        let label_color=if active{[255,255,255,255]}else{[215,215,220,255]};
-        let marker=if active{">"}else{" "};
-        font.draw_text(marker,-0.62,y,label_color);
-        font.draw_text(labels[i],-0.54,y,label_color);
-        if !values[i].is_empty(){font.draw_text(values[i],0.34,y,[150,230,170,255]);}
+unsafe fn draw_settings_menu(
+    font: &FontRenderer,
+    selected: usize,
+    vsync: bool,
+    sensitivity: f32,
+    invert_x: bool,
+    invert_y: bool,
+) {
+    gl::MatrixMode(gl::PROJECTION);
+    gl::LoadMatrixf(
+        glam::Mat4::orthographic_rh_gl(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0)
+            .to_cols_array()
+            .as_ptr(),
+    );
+    gl::MatrixMode(gl::MODELVIEW);
+    gl::LoadMatrixf(glam::Mat4::IDENTITY.to_cols_array().as_ptr());
+    gl::Disable(gl::DEPTH_TEST);
+    gl::Enable(gl::BLEND);
+    gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
+    gl::Color4f(0.015, 0.02, 0.03, 0.82);
+    gl::Begin(gl::QUADS);
+    gl::Vertex3f(-1.0, -1.0, 0.0);
+    gl::Vertex3f(1.0, -1.0, 0.0);
+    gl::Vertex3f(1.0, 1.0, 0.0);
+    gl::Vertex3f(-1.0, 1.0, 0.0);
+    gl::End();
+    let labels = [
+        "VSync",
+        "Mouse Sensitivity",
+        "Invert X",
+        "Invert Y",
+        "Fullscreen",
+        "QUIT GAME",
+    ];
+    let sensitivity_text = format!("{:.3}", sensitivity);
+    let values = [
+        if vsync { "ON" } else { "OFF" },
+        sensitivity_text.as_str(),
+        if invert_x { "ON" } else { "OFF" },
+        if invert_y { "ON" } else { "OFF" },
+        "F11",
+        "",
+    ];
+    let rows = [0.36, 0.17, -0.02, -0.21, -0.40, -0.62];
+    font.draw_text("SETTINGS", -0.22, 0.68, [255, 255, 255, 255]);
+    for i in 0..labels.len() {
+        let y = rows[i];
+        let active = i == selected;
+        let label_color = if active {
+            [255, 255, 255, 255]
+        } else {
+            [215, 215, 220, 255]
+        };
+        let marker = if active { ">" } else { " " };
+        font.draw_text(marker, -0.62, y, label_color);
+        font.draw_text(labels[i], -0.54, y, label_color);
+        if !values[i].is_empty() {
+            font.draw_text(values[i], 0.34, y, [150, 230, 170, 255]);
+        }
     }
-    font.draw_text("ENTER: select",-0.62,-0.84,[170,170,180,255]);
-    font.draw_text("ESC: close",0.25,-0.84,[170,170,180,255]);
-    gl::Disable(gl::BLEND); gl::Enable(gl::DEPTH_TEST);
+    font.draw_text("ENTER: select", -0.62, -0.84, [170, 170, 180, 255]);
+    font.draw_text("ESC: close", 0.25, -0.84, [170, 170, 180, 255]);
+    gl::Disable(gl::BLEND);
+    gl::Enable(gl::DEPTH_TEST);
 }
