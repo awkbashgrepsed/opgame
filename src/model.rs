@@ -100,7 +100,7 @@ unsafe fn draw_meshes(meshes: &[ModelMesh]) {
             if let (Some(p), Some(n)) = (mesh.positions.get(i), mesh.normals.get(i)) {
                 gl::Color4f(mesh.color[0], mesh.color[1], mesh.color[2], mesh.color[3]);
                 if let Some(uv) = mesh.uvs.get(i) { gl::TexCoord2f(uv.x, uv.y); }
-                gl::Normal3f(n.x, n.y, n.z);
+                gl::Normal3f(p.x, p.y, p.z);
                 gl::Vertex3f(p.x, p.y, p.z);
             }
         }
