@@ -32,11 +32,6 @@ impl Renderer {
     pub fn new(window: Window, config: Config) -> Self {
         let display = config.display();
         let raw_window_handle = window.raw_window_handle();
-
-        // A compatibility context is required: the prototype renderer still draws
-        // with fixed-function immediate mode. Asking for 2.1 keeps the request
-        // legacy on every backend; the fallback covers drivers that reject an
-        // explicit version.
         let context = [
             ContextAttributesBuilder::new()
                 .with_context_api(ContextApi::OpenGl(Some(Version::new(2, 1))))
@@ -66,11 +61,30 @@ impl Renderer {
             gl::Enable(gl::DEPTH_TEST);
             gl::DepthFunc(gl::LEQUAL);
             gl::ClearColor(0.38, 0.58, 0.82, 1.0);
+
+            // Real fixed-function Gouraud shading:
+            // lighting is evaluated per vertex and GL_SMOOTH interpolates
+            // the resulting vertex colors across each triangle.
+            gl::ShadeModel(gl::SMOOTH);
+            gl::Enable(gl::LIGHTING);
+            gl::Enable(gl::LIGHT0);
+            gl::Enable(gl::COLOR_MATERIAL);
+            gl::ColorMaterial(gl::FRONT_AND_BACK, gl::AMBIENT_AND_DIFFUSE);
+            gl::Enable(gl::NORMALIZE);
+
+            let light_position: [f32; 4] = [-0.35, 1.0, 0.25, 0.0];
+            let ambient: [f32; 4] = [0.30, 0.30, 0.30, 1.0];
+            let diffuse: [f32; 4] = [0.85, 0.85, 0.85, 1.0];
+            gl::Lightfv(gl::LIGHT0, gl::POSITION, light_position.as_ptr());
+            gl::Lightfv(gl::LIGHT0, gl::AMBIENT, ambient.as_ptr());
+            gl::Lightfv(gl::LIGHT0, gl::DIFFUSE, diffuse.as_ptr());
+
             let size = window.inner_size();
             gl::Viewport(0, 0, size.width as i32, size.height as i32);
         }
 
-        let font = FontRenderer::new(26.0).unwrap_or_else(|e| panic!("Font initialization failed: {}", e));
+        let font = FontRenderer::new(26.0)
+            .unwrap_or_else(|e| panic!("Font initialization failed: {}", e));
         let renderer = Self { window, surface, context, vsync: true, font };
         renderer.apply_vsync();
         renderer
@@ -102,14 +116,8 @@ impl Renderer {
         unsafe{
             gl::Clear(gl::COLOR_BUFFER_BIT|gl::DEPTH_BUFFER_BIT);
             let projection=camera.projection_matrix();let view=camera.view_matrix();gl::MatrixMode(gl::PROJECTION);gl::LoadMatrixf(projection.to_cols_array().as_ptr());gl::MatrixMode(gl::MODELVIEW);gl::LoadMatrixf(view.to_cols_array().as_ptr());
-
-            // The world is now authored in Blender and loaded as an external GLB.
-            // The old hard-coded ground, roads, and buildings are intentionally no
-            // longer rendered; World still retains those structures for gameplay
-            // systems until their collision/navigation data is replaced too.
             model::draw_map();
             model::draw_player(player.position,player.rotation);
-
             if settings_menu { draw_settings_menu(&self.font,selected,self.vsync,sensitivity,invert_x,invert_y); }
             if aiming && !settings_menu { draw_crosshair(); }
             gl::Flush();
@@ -121,19 +129,19 @@ impl Renderer {
 
 unsafe fn draw_crosshair(){
     gl::MatrixMode(gl::PROJECTION);gl::LoadMatrixf(glam::Mat4::orthographic_rh_gl(-1.0,1.0,-1.0,1.0,-1.0,1.0).to_cols_array().as_ptr());gl::MatrixMode(gl::MODELVIEW);gl::LoadMatrixf(glam::Mat4::IDENTITY.to_cols_array().as_ptr());
-    gl::Disable(gl::DEPTH_TEST); gl::Color3f(1.0,1.0,1.0); gl::LineWidth(2.0);
+    gl::Disable(gl::LIGHTING); gl::Disable(gl::DEPTH_TEST); gl::Color3f(1.0,1.0,1.0); gl::LineWidth(2.0);
     let gap=0.012; let length=0.035;
     gl::Begin(gl::LINES);
     gl::Vertex3f(-gap-length,0.0,0.0);gl::Vertex3f(-gap,0.0,0.0);
     gl::Vertex3f(gap,0.0,0.0);gl::Vertex3f(gap+length,0.0,0.0);
     gl::Vertex3f(0.0,-gap-length,0.0);gl::Vertex3f(0.0,-gap,0.0);
     gl::Vertex3f(0.0,gap,0.0);gl::Vertex3f(0.0,gap+length,0.0);
-    gl::End(); gl::Enable(gl::DEPTH_TEST);
+    gl::End(); gl::Enable(gl::DEPTH_TEST); gl::Enable(gl::LIGHTING);
 }
 
 unsafe fn draw_settings_menu(font:&FontRenderer,selected:usize,vsync:bool,sensitivity:f32,invert_x:bool,invert_y:bool){
     gl::MatrixMode(gl::PROJECTION);gl::LoadMatrixf(glam::Mat4::orthographic_rh_gl(-1.0,1.0,-1.0,1.0,-1.0,1.0).to_cols_array().as_ptr());gl::MatrixMode(gl::MODELVIEW);gl::LoadMatrixf(glam::Mat4::IDENTITY.to_cols_array().as_ptr());
-    gl::Disable(gl::DEPTH_TEST); gl::Enable(gl::BLEND); gl::BlendFunc(gl::SRC_ALPHA,gl::ONE_MINUS_SRC_ALPHA);
+    gl::Disable(gl::LIGHTING); gl::Disable(gl::DEPTH_TEST); gl::Enable(gl::BLEND); gl::BlendFunc(gl::SRC_ALPHA,gl::ONE_MINUS_SRC_ALPHA);
     gl::Color4f(0.015,0.02,0.03,0.82);gl::Begin(gl::QUADS);gl::Vertex3f(-1.0,-1.0,0.0);gl::Vertex3f(1.0,-1.0,0.0);gl::Vertex3f(1.0,1.0,0.0);gl::Vertex3f(-1.0,1.0,0.0);gl::End();
     let labels=["VSync","Mouse Sensitivity","Invert X","Invert Y","Fullscreen","QUIT GAME"];
     let sensitivity_text=format!("{:.3}",sensitivity);
@@ -150,5 +158,5 @@ unsafe fn draw_settings_menu(font:&FontRenderer,selected:usize,vsync:bool,sensit
     }
     font.draw_text("ENTER: select",-0.62,-0.84,[170,170,180,255]);
     font.draw_text("ESC: close",0.25,-0.84,[170,170,180,255]);
-    gl::Disable(gl::BLEND); gl::Enable(gl::DEPTH_TEST);
+    gl::Disable(gl::BLEND); gl::Enable(gl::DEPTH_TEST); gl::Enable(gl::LIGHTING);
 }
