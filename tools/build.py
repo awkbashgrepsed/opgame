@@ -23,9 +23,8 @@ def main() -> int:
         print(f"Build succeeded, but binary was not found: {binary}", file=sys.stderr)
         return 1
 
-    # The runtime has one data root: dist/assets.
-    # Preserve the user's runtime settings when rebuilding, but remove stale
-    # directories such as the old dist/data tree.
+    # The runtime has exactly one data root: dist/assets.
+    # Preserve the user's runtime settings when rebuilding.
     runtime_settings = DIST / "assets" / "config" / "settings.toml"
     saved_settings = runtime_settings.read_bytes() if runtime_settings.exists() else None
 
