@@ -1,0 +1,5 @@
+version = 1
+
+[[locations]]
+id = "village_a"
+position = [0.0, 0.0, 0.0]
