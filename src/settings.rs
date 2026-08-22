@@ -1,8 +1,8 @@
+use crate::assets::path;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::Path;
 
-const SETTINGS_PATH: &str = "data/config/settings.toml";
+const SETTINGS_RELATIVE_PATH: &str = "config/settings.toml";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
@@ -28,13 +28,15 @@ impl Default for Settings {
 }
 
 impl Settings {
+    fn file_path() -> std::path::PathBuf { path(SETTINGS_RELATIVE_PATH) }
+
     pub fn load() -> Self {
-        let path = Path::new(SETTINGS_PATH);
-        match fs::read_to_string(path) {
+        let file_path = Self::file_path();
+        match fs::read_to_string(&file_path) {
             Ok(contents) => match toml::from_str::<Settings>(&contents) {
                 Ok(settings) => settings,
                 Err(error) => {
-                    log::warn!("Could not parse {}: {}. Using defaults.", SETTINGS_PATH, error);
+                    log::warn!("Could not parse {}: {}. Using defaults.", file_path.display(), error);
                     let settings = Self::default();
                     settings.save();
                     settings
@@ -49,8 +51,8 @@ impl Settings {
     }
 
     pub fn save(&self) {
-        let path = Path::new(SETTINGS_PATH);
-        if let Some(parent) = path.parent() {
+        let file_path = Self::file_path();
+        if let Some(parent) = file_path.parent() {
             if let Err(error) = fs::create_dir_all(parent) {
                 log::warn!("Could not create settings directory: {}", error);
                 return;
@@ -58,8 +60,8 @@ impl Settings {
         }
         match toml::to_string_pretty(self) {
             Ok(contents) => {
-                if let Err(error) = fs::write(path, contents) {
-                    log::warn!("Could not save {}: {}", SETTINGS_PATH, error);
+                if let Err(error) = fs::write(&file_path, contents) {
+                    log::warn!("Could not save {}: {}", file_path.display(), error);
                 }
             }
             Err(error) => log::warn!("Could not serialize settings: {}", error),
