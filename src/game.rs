@@ -82,25 +82,27 @@ impl Game {
         if self.input_state.left{movement-=right;}
         if movement.length_squared()>0.0001{
             let direction=movement.normalize();
-            self.player.position+=direction*speed*dt;
+            movement=direction*speed*dt;
             let target_rotation=if self.aiming{forward.x.atan2(forward.z)}else{direction.x.atan2(direction.z)};
             let mut angle_delta=target_rotation-self.player.rotation;
             while angle_delta>std::f32::consts::PI{angle_delta-=std::f32::consts::TAU;}
             while angle_delta < -std::f32::consts::PI{angle_delta+=std::f32::consts::TAU;}
             let max_turn=(if self.aiming{AIM_TURN_SPEED}else{PLAYER_TURN_SPEED})*dt;
             self.player.rotation+=angle_delta.clamp(-max_turn,max_turn);
-        }else if self.aiming{
+        }
+        else if self.aiming{
             let target_rotation=forward.x.atan2(forward.z);
             let mut angle_delta=target_rotation-self.player.rotation;
             while angle_delta>std::f32::consts::PI{angle_delta-=std::f32::consts::TAU;}
             while angle_delta < -std::f32::consts::PI{angle_delta+=std::f32::consts::TAU;}
             self.player.rotation+=angle_delta.clamp(-AIM_TURN_SPEED*dt,AIM_TURN_SPEED*dt);
         }
+
         let desired_camera_distance=if self.aiming{AIM_CAMERA_DISTANCE}else{NORMAL_CAMERA_DISTANCE};
         let blend=(AIM_CAMERA_SMOOTHNESS*dt).min(1.0);
         self.camera.distance+=(desired_camera_distance-self.camera.distance)*blend;
-        self.player.update(self.game_time);
-        self.physics_engine.update(&mut self.player,self.game_time);
+
+        self.physics_engine.update(&mut self.player,&self.world,movement,dt);
         self.npc_manager.update(&self.player,&self.world,self.game_time);
         self.vehicle_manager.update(self.game_time);
         self.combat_system.update(&mut self.player,&mut self.npc_manager,self.game_time);
