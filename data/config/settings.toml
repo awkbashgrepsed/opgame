@@ -1,5 +1,13 @@
-vsync = true
+[graphics]
 fullscreen = true
+vsync = true
+
+[camera]
 mouse_sensitivity = 0.004
 invert_x = false
 invert_y = false
+
+[audio]
+master_volume = 1.0
+music_volume = 1.0
+effects_volume = 1.0
