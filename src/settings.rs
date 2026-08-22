@@ -6,10 +6,24 @@ const SETTINGS_RELATIVE_PATH: &str = "config/settings.toml";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
-    #[serde(default = "default_true")]
-    pub vsync: bool,
+    #[serde(default)]
+    pub graphics: GraphicsSettings,
+    #[serde(default)]
+    pub camera: CameraSettings,
+    #[serde(default)]
+    pub audio: AudioSettings,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GraphicsSettings {
     #[serde(default = "default_true")]
     pub fullscreen: bool,
+    #[serde(default = "default_true")]
+    pub vsync: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CameraSettings {
     #[serde(default = "default_sensitivity")]
     pub mouse_sensitivity: f32,
     #[serde(default)]
@@ -18,56 +32,40 @@ pub struct Settings {
     pub invert_y: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AudioSettings {
+    #[serde(default = "default_volume")]
+    pub master_volume: f32,
+    #[serde(default = "default_volume")]
+    pub music_volume: f32,
+    #[serde(default = "default_volume")]
+    pub effects_volume: f32,
+}
+
 fn default_true() -> bool { true }
 fn default_sensitivity() -> f32 { 0.004 }
+fn default_volume() -> f32 { 1.0 }
 
-impl Default for Settings {
-    fn default() -> Self {
-        Self { vsync: true, fullscreen: true, mouse_sensitivity: 0.004, invert_x: false, invert_y: false }
-    }
-}
+impl Default for GraphicsSettings { fn default() -> Self { Self { fullscreen: true, vsync: true } } }
+impl Default for CameraSettings { fn default() -> Self { Self { mouse_sensitivity: 0.004, invert_x: false, invert_y: false } } }
+impl Default for AudioSettings { fn default() -> Self { Self { master_volume: 1.0, music_volume: 1.0, effects_volume: 1.0 } } }
+impl Default for Settings { fn default() -> Self { Self { graphics: GraphicsSettings::default(), camera: CameraSettings::default(), audio: AudioSettings::default() } } }
 
 impl Settings {
     fn file_path() -> std::path::PathBuf { path(SETTINGS_RELATIVE_PATH) }
-
     pub fn load() -> Self {
         let file_path = Self::file_path();
         match fs::read_to_string(&file_path) {
             Ok(contents) => match toml::from_str::<Settings>(&contents) {
-                Ok(settings) => {
-                    log::info!("Loaded settings from {}: invert_x={}, invert_y={}, fullscreen={}, vsync={}", file_path.display(), settings.invert_x, settings.invert_y, settings.fullscreen, settings.vsync);
-                    settings
-                }
-                Err(error) => {
-                    log::warn!("Could not parse {}: {}. Using defaults.", file_path.display(), error);
-                    let settings = Self::default();
-                    settings.save();
-                    settings
-                }
+                Ok(settings) => { log::info!("Loaded settings from {}", file_path.display()); settings }
+                Err(error) => { log::warn!("Could not parse {}: {}. Using defaults.", file_path.display(), error); let settings = Self::default(); settings.save(); settings }
             },
-            Err(_) => {
-                let settings = Self::default();
-                settings.save();
-                settings
-            }
+            Err(_) => { let settings = Self::default(); settings.save(); settings }
         }
     }
-
     pub fn save(&self) {
         let file_path = Self::file_path();
-        if let Some(parent) = file_path.parent() {
-            if let Err(error) = fs::create_dir_all(parent) {
-                log::warn!("Could not create settings directory: {}", error);
-                return;
-            }
-        }
-        match toml::to_string_pretty(self) {
-            Ok(contents) => {
-                if let Err(error) = fs::write(&file_path, contents) {
-                    log::warn!("Could not save {}: {}", file_path.display(), error);
-                }
-            }
-            Err(error) => log::warn!("Could not serialize settings: {}", error),
-        }
+        if let Some(parent) = file_path.parent() { if let Err(error) = fs::create_dir_all(parent) { log::warn!("Could not create settings directory: {}", error); return; } }
+        match toml::to_string_pretty(self) { Ok(contents) => { if let Err(error) = fs::write(&file_path, contents) { log::warn!("Could not save {}: {}", file_path.display(), error); } }, Err(error) => log::warn!("Could not serialize settings: {}", error) }
     }
 }
