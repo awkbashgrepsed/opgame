@@ -1,0 +1,5 @@
+vsync = true
+fullscreen = true
+mouse_sensitivity = 0.004
+invert_x = false
+invert_y = false
