@@ -34,7 +34,10 @@ impl Settings {
         let file_path = Self::file_path();
         match fs::read_to_string(&file_path) {
             Ok(contents) => match toml::from_str::<Settings>(&contents) {
-                Ok(settings) => settings,
+                Ok(settings) => {
+                    log::info!("Loaded settings from {}: invert_x={}, invert_y={}, fullscreen={}, vsync={}", file_path.display(), settings.invert_x, settings.invert_y, settings.fullscreen, settings.vsync);
+                    settings
+                }
                 Err(error) => {
                     log::warn!("Could not parse {}: {}. Using defaults.", file_path.display(), error);
                     let settings = Self::default();
