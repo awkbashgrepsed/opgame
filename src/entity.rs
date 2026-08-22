@@ -1,5 +1,6 @@
 use glam::Vec3;
 use uuid::Uuid;
+use crate::collision::Aabb;
 
 pub trait Entity {
     fn update(&mut self, time: f32);
@@ -14,6 +15,7 @@ pub struct GameObject {
     pub rotation: f32,
     pub scale: Vec3,
     pub name: String,
+    pub collider: Option<Vec3>,
 }
 
 impl GameObject {
@@ -24,7 +26,19 @@ impl GameObject {
             rotation: 0.0,
             scale: Vec3::ONE,
             name,
+            collider: None,
         }
+    }
+
+    pub fn with_box_collider(mut self, half_extents: Vec3) -> Self {
+        self.collider = Some(half_extents);
+        self
+    }
+
+    pub fn collision_aabb(&self) -> Option<Aabb> {
+        self.collider.map(|half_extents| {
+            Aabb::new(self.position, half_extents * self.scale.abs())
+        })
     }
 }
 
