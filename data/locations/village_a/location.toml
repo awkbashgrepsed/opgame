@@ -1,0 +1,3 @@
+version = 1
+name = "village_a"
+objects = "objects.toml"
