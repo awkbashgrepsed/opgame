@@ -23,18 +23,30 @@ def main() -> int:
         print(f"Build succeeded, but binary was not found: {binary}", file=sys.stderr)
         return 1
 
-    DIST.mkdir(exist_ok=True)
+    # The runtime has one data root: dist/assets.
+    # Preserve the user's runtime settings when rebuilding, but remove stale
+    # directories such as the old dist/data tree.
+    runtime_settings = DIST / "assets" / "config" / "settings.toml"
+    saved_settings = runtime_settings.read_bytes() if runtime_settings.exists() else None
+
+    if DIST.exists():
+        shutil.rmtree(DIST)
+    DIST.mkdir(parents=True)
+
     output_binary = DIST / binary_name
     shutil.copy2(binary, output_binary)
 
     output_assets = DIST / "assets"
-    if output_assets.exists():
-        shutil.rmtree(output_assets)
     shutil.copytree(DATA, output_assets)
+
+    if saved_settings is not None:
+        settings_path = output_assets / "config" / "settings.toml"
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+        settings_path.write_bytes(saved_settings)
 
     print(f"Runtime assembled in: {DIST}")
     print(f"  binary: {output_binary.name}")
-    print(f"  assets: {output_assets}")
+    print(f"  data:   {output_assets}")
     return 0
 
 
