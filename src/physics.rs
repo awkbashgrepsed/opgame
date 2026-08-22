@@ -82,7 +82,7 @@ impl PhysicsEngine {
 
     pub fn raycast(&self, origin: Vec3, direction: Vec3, max_distance: f32, world: &World) -> Option<Vec3> {
         let direction = direction.try_normalize()?;
-        let mut closest_distance = max_distance;
+        let mut closest_distance: f32 = max_distance;
         let mut closest_hit = None;
 
         for object_box in world.collision_boxes() {
@@ -101,8 +101,8 @@ impl PhysicsEngine {
 fn ray_aabb(origin: Vec3, direction: Vec3, aabb: &Aabb, max_distance: f32) -> Option<f32> {
     let min = aabb.min();
     let max = aabb.max();
-    let mut t_min = 0.0;
-    let mut t_max = max_distance;
+    let mut t_min: f32 = 0.0;
+    let mut t_max: f32 = max_distance;
 
     for axis in 0..3 {
         if direction[axis].abs() < 1e-6 {
