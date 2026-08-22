@@ -1,5 +1,6 @@
 use glam::Vec3;
 use crate::entity::GameObject;
+use crate::collision::Aabb;
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -15,7 +16,7 @@ pub struct World {
     pub roads: Vec<Road>,
     pub width: f32,
     pub height: f32,
-    pub time_of_day: f32, // 0-24
+    pub time_of_day: f32,
     pub weather: Weather,
 }
 
@@ -38,7 +39,6 @@ impl World {
             weather: Weather::Clear,
         };
 
-        // A small city block layout that can later be replaced by a real map.
         world.add_road(Vec3::new(-250.0, 0.0, 0.0), Vec3::new(250.0, 0.0, 0.0), 12.0);
         world.add_road(Vec3::new(0.0, 0.0, -250.0), Vec3::new(0.0, 0.0, 250.0), 12.0);
         world.add_road(Vec3::new(-250.0, 0.0, -100.0), Vec3::new(250.0, 0.0, -100.0), 8.0);
@@ -46,7 +46,6 @@ impl World {
         world.add_road(Vec3::new(-100.0, 0.0, -250.0), Vec3::new(-100.0, 0.0, 250.0), 8.0);
         world.add_road(Vec3::new(100.0, 0.0, -250.0), Vec3::new(100.0, 0.0, 250.0), 8.0);
 
-        // Four starter city blocks around the central intersection.
         world.spawn_building(Vec3::new(-50.0, 0.0, -50.0), "Building_A");
         world.spawn_building(Vec3::new(50.0, 0.0, -50.0), "Building_B");
         world.spawn_building(Vec3::new(-50.0, 0.0, 50.0), "Building_C");
@@ -60,7 +59,8 @@ impl World {
     }
 
     pub fn spawn_building(&mut self, position: Vec3, name: &str) {
-        let obj = GameObject::new(position, name.to_string());
+        let obj = GameObject::new(position, name.to_string())
+            .with_box_collider(Vec3::new(5.0, 5.0, 5.0));
         self.objects.insert(obj.id, obj);
     }
 
@@ -71,6 +71,10 @@ impl World {
 
     pub fn remove_object(&mut self, id: Uuid) {
         self.objects.remove(&id);
+    }
+
+    pub fn collision_boxes(&self) -> impl Iterator<Item = Aabb> + '_ {
+        self.objects.values().filter_map(|object| object.collision_aabb())
     }
 
     pub fn update_time(&mut self, delta: f32) {
