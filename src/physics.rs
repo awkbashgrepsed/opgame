@@ -29,13 +29,28 @@ impl PhysicsEngine {
         let mut position = player.position;
         position = self.resolve_axis(position, PLAYER_HALF_EXTENTS, displacement.x, 0, world);
         position = self.resolve_axis(position, PLAYER_HALF_EXTENTS, displacement.z, 2, world);
-        position = self.resolve_axis(position, PLAYER_HALF_EXTENTS, displacement.y, 1, world);
+
+        // Vertical collision needs to tell us whether we landed on a surface.
+        // A positive Y collision normal means the surface is underneath the
+        // player, regardless of whether that surface is the ground, a crate,
+        // a platform, or another world object.
+        let (vertical_position, landed) = self.resolve_vertical(
+            position,
+            PLAYER_HALF_EXTENTS,
+            displacement.y,
+            world,
+        );
+        position = vertical_position;
 
         if position.y <= GROUND_Y {
             position.y = GROUND_Y;
             if player.velocity.y < 0.0 {
                 player.velocity.y = 0.0;
             }
+            player.is_falling = false;
+            player.is_jumping = false;
+        } else if landed {
+            player.velocity.y = 0.0;
             player.is_falling = false;
             player.is_jumping = false;
         } else {
@@ -71,6 +86,39 @@ impl PhysicsEngine {
         }
 
         candidate
+    }
+
+    fn resolve_vertical(
+        &self,
+        position: Vec3,
+        half_extents: Vec3,
+        amount: f32,
+        world: &World,
+    ) -> (Vec3, bool) {
+        if amount.abs() <= f32::EPSILON {
+            return (position, false);
+        }
+
+        let mut candidate = position;
+        candidate.y += amount;
+        let mut player_box = self.player_aabb(candidate, half_extents);
+        let mut landed = false;
+
+        for world_box in world.collision_boxes() {
+            if let Some(hit) = collision_between(&player_box, &world_box) {
+                // Only a downward movement into an upward-facing surface is
+                // considered a landing. Hitting a wall or the underside of an
+                // object must not make the player grounded.
+                if amount < 0.0 && hit.normal.y > 0.5 {
+                    landed = true;
+                }
+
+                candidate += hit.normal * hit.depth;
+                player_box = self.player_aabb(candidate, half_extents);
+            }
+        }
+
+        (candidate, landed)
     }
 
     fn player_aabb(&self, feet_position: Vec3, half_extents: Vec3) -> Aabb {
