@@ -3,6 +3,7 @@ mod game;
 mod camera;
 mod player;
 mod entity;
+mod collision;
 mod renderer;
 mod model;
 mod gl;
@@ -30,7 +31,7 @@ fn main() {
 
     let event_loop = EventLoop::new().expect("Failed to create event loop");
     let window_builder = WindowBuilder::new()
-        .with_title("OPGAME - GTA SA-like (OpenGL 2.1+)")
+        .with_title("OPGAME - OpenGL 2.1+")
         .with_inner_size(winit::dpi::LogicalSize::new(1280.0, 720.0));
 
     // The window and the GL config are created together: on Windows the pixel
