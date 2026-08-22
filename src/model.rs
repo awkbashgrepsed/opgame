@@ -1,19 +1,10 @@
 use std::collections::HashMap;
-use std::sync::OnceLock;
-
+use std::sync::{Mutex, OnceLock};
 use glam::{Mat4, Vec2, Vec3, Vec4};
-
 use crate::assets;
 use crate::gl;
 
-struct ModelMesh {
-    positions: Vec<Vec3>,
-    normals: Vec<Vec3>,
-    uvs: Vec<Vec2>,
-    indices: Vec<u32>,
-    color: [f32; 4],
-    texture: Option<u32>,
-}
+struct ModelMesh { positions: Vec<Vec3>, normals: Vec<Vec3>, uvs: Vec<Vec2>, indices: Vec<u32>, color: [f32; 4], texture: Option<u32> }
 
 unsafe fn load_texture(image: &gltf::image::Data) -> u32 {
     let mut rgba = Vec::with_capacity((image.width * image.height * 4) as usize);
@@ -24,106 +15,35 @@ unsafe fn load_texture(image: &gltf::image::Data) -> u32 {
         gltf::image::Format::R8G8B8A8 => rgba.extend_from_slice(&image.pixels),
         _ => panic!("Unsupported GLB image format {:?}; export textures as 8-bit PNG/JPEG data", image.format),
     }
-    let mut texture = 0;
-    gl::GenTextures(1, &mut texture);
-    gl::BindTexture(gl::TEXTURE_2D, texture);
-    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
-    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
-    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
-    gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
-    gl::PixelStorei(gl::UNPACK_ALIGNMENT, 1);
-    gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RGBA as i32, image.width as i32, image.height as i32, 0, gl::RGBA, gl::UNSIGNED_BYTE, rgba.as_ptr() as *const std::ffi::c_void);
-    gl::BindTexture(gl::TEXTURE_2D, 0);
-    texture
+    let mut texture=0; gl::GenTextures(1,&mut texture); gl::BindTexture(gl::TEXTURE_2D,texture); gl::TexParameteri(gl::TEXTURE_2D,gl::TEXTURE_MIN_FILTER,gl::LINEAR as i32); gl::TexParameteri(gl::TEXTURE_2D,gl::TEXTURE_MAG_FILTER,gl::LINEAR as i32); gl::TexParameteri(gl::TEXTURE_2D,gl::TEXTURE_WRAP_S,gl::REPEAT as i32); gl::TexParameteri(gl::TEXTURE_2D,gl::TEXTURE_WRAP_T,gl::REPEAT as i32); gl::PixelStorei(gl::UNPACK_ALIGNMENT,1); gl::TexImage2D(gl::TEXTURE_2D,0,gl::RGBA as i32,image.width as i32,image.height as i32,0,gl::RGBA,gl::UNSIGNED_BYTE,rgba.as_ptr() as *const std::ffi::c_void); gl::BindTexture(gl::TEXTURE_2D,0); texture
 }
 
 unsafe fn load_model(relative_path: &str, label: &str) -> Vec<ModelMesh> {
-    let path = assets::path(relative_path);
-    if !path.is_file() { panic!("{label} model not found: {}", path.display()); }
-    let (document, buffers, images) = gltf::import(&path).unwrap_or_else(|e| panic!("Failed to load {}: {e}", path.display()));
-    let mut meshes = Vec::new();
-    let mut texture_cache: HashMap<usize, u32> = HashMap::new();
-    for scene in document.scenes() {
-        for node in scene.nodes() { load_node(node, Mat4::IDENTITY, &buffers, &images, &mut texture_cache, &mut meshes, &path); }
-    }
-    if meshes.is_empty() { panic!("{} contains no mesh primitives", path.display()); }
-    log::info!("Loaded {label} from {}: {} mesh primitive(s), {} texture(s)", path.display(), meshes.len(), texture_cache.len());
-    meshes
+    let path=assets::path(relative_path); if !path.is_file(){panic!("{label} model not found: {}",path.display());}
+    let (document,buffers,images)=gltf::import(&path).unwrap_or_else(|e|panic!("Failed to load {}: {e}",path.display())); let mut meshes=Vec::new(); let mut texture_cache=HashMap::new();
+    for scene in document.scenes(){for node in scene.nodes(){load_node(node,Mat4::IDENTITY,&buffers,&images,&mut texture_cache,&mut meshes,&path);}}
+    if meshes.is_empty(){panic!("{} contains no mesh primitives",path.display());} log::info!("Loaded {label} from {}: {} mesh primitive(s), {} texture(s)",path.display(),meshes.len(),texture_cache.len()); meshes
 }
 
-unsafe fn load_node(node: gltf::Node, parent_transform: Mat4, buffers: &[gltf::buffer::Data], images: &[gltf::image::Data], texture_cache: &mut HashMap<usize, u32>, meshes: &mut Vec<ModelMesh>, path: &std::path::Path) {
-    let local_transform = Mat4::from_cols_array_2d(&node.transform().matrix());
-    let transform = parent_transform * local_transform;
-    let normal_matrix = transform.inverse().transpose();
-    if let Some(mesh) = node.mesh() {
-        for primitive in mesh.primitives() {
-            let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()].0));
-            let positions: Vec<Vec3> = reader.read_positions().unwrap_or_else(|| panic!("{} contains a primitive without positions", path.display())).map(|p| { let v = transform * Vec4::new(p[0], p[1], p[2], 1.0); Vec3::new(v.x, v.y, v.z) }).collect();
-            let normals: Vec<Vec3> = match reader.read_normals() {
-                Some(values) => values.map(|n| { let v = normal_matrix * Vec4::new(n[0], n[1], n[2], 0.0); Vec3::new(v.x, v.y, v.z).normalize_or_zero() }).collect(),
-                None => vec![Vec3::Y; positions.len()],
-            };
-            let uvs: Vec<Vec2> = match reader.read_tex_coords(0) {
-                Some(values) => values.into_f32().map(|uv| Vec2::new(uv[0], uv[1])).collect(),
-                None => vec![Vec2::ZERO; positions.len()],
-            };
-            let indices: Vec<u32> = match reader.read_indices() { Some(indices) => indices.into_u32().collect(), None => (0..positions.len() as u32).collect() };
-            let pbr = primitive.material().pbr_metallic_roughness();
-            let color = pbr.base_color_factor();
-            let texture = pbr.base_color_texture().map(|info| { let image_index = info.texture().source().index(); if let Some(&t) = texture_cache.get(&image_index) { t } else { let t = load_texture(&images[image_index]); texture_cache.insert(image_index, t); t } });
-            meshes.push(ModelMesh { positions, normals, uvs, indices, color, texture });
-        }
-    }
-    for child in node.children() { load_node(child, transform, buffers, images, texture_cache, meshes, path); }
+unsafe fn load_node(node:gltf::Node,parent_transform:Mat4,buffers:&[gltf::buffer::Data],images:&[gltf::image::Data],texture_cache:&mut HashMap<usize,u32>,meshes:&mut Vec<ModelMesh>,path:&std::path::Path){
+    let local_transform=Mat4::from_cols_array_2d(&node.transform().matrix()); let transform=parent_transform*local_transform; let normal_matrix=transform.inverse().transpose();
+    if let Some(mesh)=node.mesh(){for primitive in mesh.primitives(){let reader=primitive.reader(|buffer|Some(&buffers[buffer.index()].0));let positions:Vec<Vec3>=reader.read_positions().unwrap_or_else(||panic!("{} contains a primitive without positions",path.display())).map(|p|{let v=transform*Vec4::new(p[0],p[1],p[2],1.0);Vec3::new(v.x,v.y,v.z)}).collect();let normals:Vec<Vec3>=match reader.read_normals(){Some(values)=>values.map(|n|{let v=normal_matrix*Vec4::new(n[0],n[1],n[2],0.0);Vec3::new(v.x,v.y,v.z).normalize_or_zero()}).collect(),None=>vec![Vec3::Y;positions.len()]};let uvs:Vec<Vec2>=match reader.read_tex_coords(0){Some(values)=>values.into_f32().map(|uv|Vec2::new(uv[0],uv[1])).collect(),None=>vec![Vec2::ZERO;positions.len()]};let indices:Vec<u32>=match reader.read_indices(){Some(indices)=>indices.into_u32().collect(),None=>(0..positions.len() as u32).collect()};let pbr=primitive.material().pbr_metallic_roughness();let color=pbr.base_color_factor();let texture=pbr.base_color_texture().map(|info|{let image_index=info.texture().source().index();if let Some(&t)=texture_cache.get(&image_index){t}else{let t=load_texture(&images[image_index]);texture_cache.insert(image_index,t);t}});meshes.push(ModelMesh{positions,normals,uvs,indices,color,texture});}}
+    for child in node.children(){load_node(child,transform,buffers,images,texture_cache,meshes,path);}
 }
 
-static PLAYER_MODEL: OnceLock<Vec<ModelMesh>> = OnceLock::new();
-static MAP_MODEL: OnceLock<Vec<ModelMesh>> = OnceLock::new();
-fn load_player_model() -> &'static Vec<ModelMesh> { PLAYER_MODEL.get_or_init(|| unsafe { load_model("models/player.glb", "player") }) }
-fn load_map_model() -> &'static Vec<ModelMesh> { MAP_MODEL.get_or_init(|| unsafe { load_model("models/environment/map.glb", "map") }) }
+static PLAYER_MODEL:OnceLock<Vec<ModelMesh>>=OnceLock::new(); static MAP_MODEL:OnceLock<Vec<ModelMesh>>=OnceLock::new();
+fn load_player_model()->&'static Vec<ModelMesh>{PLAYER_MODEL.get_or_init(||unsafe{load_model("models/player.glb","player")})}
+fn load_map_model()->&'static Vec<ModelMesh>{MAP_MODEL.get_or_init(||unsafe{load_model("models/environment/map.glb","map")})}
+static ASSET_MODELS:OnceLock<Mutex<HashMap<String,Vec<ModelMesh>>>>=OnceLock::new();
 
-unsafe fn draw_meshes(meshes: &[ModelMesh]) {
-    // OpenGL's fixed-function Gouraud shading. GL_SMOOTH makes lighting results
-    // calculated at vertices interpolate across each triangle.
-    gl::ShadeModel(gl::SMOOTH);
-    gl::Enable(gl::LIGHTING);
-    gl::Enable(gl::LIGHT0);
-    gl::Enable(gl::NORMALIZE);
-    gl::Enable(gl::TEXTURE_2D);
-    gl::TexEnvi(gl::TEXTURE_ENV, gl::TEXTURE_ENV_MODE, gl::MODULATE as i32);
+unsafe fn draw_meshes(meshes:&[ModelMesh]){gl::ShadeModel(gl::SMOOTH);gl::Enable(gl::LIGHTING);gl::Enable(gl::LIGHT0);gl::Enable(gl::NORMALIZE);gl::Enable(gl::TEXTURE_2D);gl::TexEnvi(gl::TEXTURE_ENV,gl::TEXTURE_ENV_MODE,gl::MODULATE as i32);for mesh in meshes{match mesh.texture{Some(texture)=>gl::BindTexture(gl::TEXTURE_2D,texture),None=>gl::BindTexture(gl::TEXTURE_2D,0)}gl::Begin(gl::TRIANGLES);for &index in &mesh.indices{let i=index as usize;if let(Some(p),Some(n))=(mesh.positions.get(i),mesh.normals.get(i)){gl::Color4f(mesh.color[0],mesh.color[1],mesh.color[2],mesh.color[3]);if let Some(uv)=mesh.uvs.get(i){gl::TexCoord2f(uv.x,uv.y);}gl::Normal3f(n.x,n.y,n.z);gl::Vertex3f(p.x,p.y,p.z);}}gl::End();}gl::BindTexture(gl::TEXTURE_2D,0);gl::Disable(gl::TEXTURE_2D);}
 
-    for mesh in meshes {
-        match mesh.texture { Some(texture) => gl::BindTexture(gl::TEXTURE_2D, texture), None => gl::BindTexture(gl::TEXTURE_2D, 0) }
-        gl::Begin(gl::TRIANGLES);
-        for &index in &mesh.indices {
-            let i = index as usize;
-            if let (Some(p), Some(n)) = (mesh.positions.get(i), mesh.normals.get(i)) {
-                gl::Color4f(mesh.color[0], mesh.color[1], mesh.color[2], mesh.color[3]);
-                if let Some(uv) = mesh.uvs.get(i) { gl::TexCoord2f(uv.x, uv.y); }
-                gl::Normal3f(p.x, p.y, p.z);
-                gl::Vertex3f(p.x, p.y, p.z);
-            }
-        }
-        gl::End();
-    }
-    gl::BindTexture(gl::TEXTURE_2D, 0);
-    gl::Disable(gl::TEXTURE_2D);
-}
+pub unsafe fn draw_player(position:Vec3,rotation:f32){let meshes=load_player_model();const SCALE:f32=0.8;gl::PushMatrix();gl::Translatef(position.x,position.y,position.z);gl::Rotatef(rotation.to_degrees(),0.0,1.0,0.0);gl::Scalef(SCALE,SCALE,SCALE);draw_meshes(meshes);gl::PopMatrix();}
+pub unsafe fn draw_map(){let meshes=load_map_model();gl::PushMatrix();draw_meshes(meshes);gl::PopMatrix();}
 
-pub unsafe fn draw_player(position: Vec3, rotation: f32) {
-    let meshes = load_player_model();
-    const SCALE: f32 = 0.8;
-    gl::PushMatrix();
-    gl::Translatef(position.x, position.y, position.z);
-    gl::Rotatef(rotation.to_degrees(), 0.0, 1.0, 0.0);
-    gl::Scalef(SCALE, SCALE, SCALE);
-    draw_meshes(meshes);
-    gl::PopMatrix();
-}
-
-pub unsafe fn draw_map() {
-    let meshes = load_map_model();
-    gl::PushMatrix();
-    draw_meshes(meshes);
-    gl::PopMatrix();
+pub unsafe fn draw_asset(asset_manager:&assets::AssetManager,id:&str,position:Vec3,rotation:Vec3,scale:Vec3){
+    let cache=ASSET_MODELS.get_or_init(||Mutex::new(HashMap::new())); let path=asset_manager.model_path(id); let key=path.to_string_lossy().to_string();
+    let mut guard=cache.lock().expect("asset model cache poisoned");
+    let meshes=guard.entry(key.clone()).or_insert_with(||load_model(&key,&format!("asset '{id}'")));
+    gl::PushMatrix(); gl::Translatef(position.x,position.y,position.z); gl::Rotatef(rotation.x.to_degrees(),1.0,0.0,0.0); gl::Rotatef(rotation.y.to_degrees(),0.0,1.0,0.0); gl::Rotatef(rotation.z.to_degrees(),0.0,0.0,1.0); gl::Scalef(scale.x,scale.y,scale.z); draw_meshes(meshes); gl::PopMatrix();
 }
