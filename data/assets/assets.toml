@@ -1,0 +1,6 @@
+version = 1
+
+[assets.crate]
+model = "assets/props/crate/crate.glb"
+collision = "assets/props/crate/crate_coll.glb"
+scale = [1.0, 1.0, 1.0]
