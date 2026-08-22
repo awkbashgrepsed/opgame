@@ -81,7 +81,6 @@ impl Player {
     pub fn take_damage(&mut self, damage: f32) {
         let armor_reduction = (self.armor / self.max_armor) * damage * 0.5;
         let remaining_damage = damage - armor_reduction;
-        
         self.armor = (self.armor - armor_reduction).max(0.0);
         self.health = (self.health - remaining_damage).max(0.0);
     }
@@ -150,21 +149,7 @@ impl Player {
     }
 
     pub fn update(&mut self, _time: f32) {
-        // Apply gravity
-        if self.is_falling {
-            self.velocity.y -= 0.1; // Gravity
-        }
-
-        self.position += self.velocity;
-
-        // Simple ground collision
-        if self.position.y < 0.5 {
-            self.position.y = 0.5;
-            self.velocity.y = 0.0;
-            self.is_falling = false;
-            self.is_jumping = false;
-        } else {
-            self.is_falling = true;
-        }
+        // Player state is updated by the physics system. Keeping movement and
+        // collision out of Player prevents multiple systems from moving it.
     }
 }
