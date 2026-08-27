@@ -34,20 +34,37 @@ python tools/build.py
 ## Dependencies
 
 winit
+
 pollster
+
 bytemuck
+
 glam
+
 serde
+
 serde_json
+
 toml
+
 log
+
 env_logger
+
 rand
+
 uuid
+
 raw-window-handle
+
 glutin
+
 glutin-winit
+
 fontdue
+
 gltf
 
 gl_generator
+
+A TrueType font is needed for on-screen text. The packaged build looks in assets/fonts/ first and then falls back to platform system fonts. Any font committed to the repository must have redistribution rights compatible with the project.
