@@ -33,10 +33,21 @@ python tools/build.py
 
 ## Dependencies
 
-- **winit** - Window management and events
-- **glutin/glutin-winit** - Cross-platform OpenGL context, surface, and proc address loading
-- **gl_generator** - Build-time OpenGL compatibility bindings
-- **glam** - Math library (vectors, matrices)
-- **serde** - Serialization (for saving/loading)
+winit
+pollster
+bytemuck
+glam
+serde
+serde_json
+toml
+log
+env_logger
+rand
+uuid
+raw-window-handle
+glutin
+glutin-winit
+fontdue
+gltf
 
-A TrueType font is needed for on-screen text. The packaged build looks in `assets/fonts/` first and then falls back to platform system fonts. Any font committed to the repository must have redistribution rights compatible with the project.
+gl_generator
