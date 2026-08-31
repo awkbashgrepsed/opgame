@@ -2,7 +2,7 @@ use std::ffi::CString;
 use std::num::NonZeroU32;
 
 use glutin::config::Config;
-use glutin::context::{ContextApi, ContextAttributesBuilder, PossiblyCurrentContext, Version};
+use glutin::context::{ContextApi, ContextAttributesBuilder, NotCurrentGlContext, PossiblyCurrentContext, Version};
 use glutin::display::{GetGlDisplay, GlDisplay};
 use glutin::surface::{GlSurface, Surface, SwapInterval, WindowSurface};
 use glutin_winit::GlWindow;
@@ -34,11 +34,6 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    /// Creates the OpenGL context and window surface.
-    ///
-    /// Display mode selection deliberately does not happen here. The window
-    /// must first exist and have a running event loop before we ask winit to
-    /// switch between windowed, borderless, and exclusive fullscreen modes.
     pub fn new(
         window: Window,
         config: Config,
@@ -47,8 +42,9 @@ impl Renderer {
         let display = config.display();
         let raw_window_handle = window.raw_window_handle();
 
-        // Request OpenGL 2.1 first because the renderer uses the fixed-function
-        // pipeline. Fall back to the default context attributes if necessary.
+        // Create the OpenGL context first. Display mode changes are deliberately
+        // not performed here; fullscreen is applied by Game after the event loop
+        // has started, using the same path as an in-game display-mode change.
         let context = [
             ContextAttributesBuilder::new()
                 .with_context_api(ContextApi::OpenGl(Some(Version::new(2, 1))))
@@ -66,6 +62,7 @@ impl Renderer {
                 .expect("Could not create the OpenGL window surface")
         };
 
+        // `make_current` is provided by NotCurrentGlContext in glutin 0.31.
         let context = context
             .make_current(&surface)
             .expect("Could not make OpenGL context current");
@@ -86,8 +83,6 @@ impl Renderer {
             gl::ColorMaterial(gl::FRONT_AND_BACK, gl::AMBIENT_AND_DIFFUSE);
             gl::Enable(gl::NORMALIZE);
 
-            // MULTISAMPLE only enables the rasterizer feature. The actual
-            // sample count comes from the GL config selected in main.rs.
             if settings.graphics.msaa_samples > 0 {
                 gl::Enable(gl::MULTISAMPLE);
             } else {
@@ -99,7 +94,6 @@ impl Renderer {
         }
 
         model::set_texture_filtering(settings.graphics.texture_filtering);
-
         let font = FontRenderer::new(26.0)
             .unwrap_or_else(|e| panic!("Font initialization failed: {}", e));
 
@@ -148,10 +142,10 @@ impl Renderer {
 
         for mode in monitor.video_modes() {
             let size = mode.size();
-            let (width, height) = (size.width, size.height);
+            let resolution = (size.width, size.height);
 
-            if width >= 640 && height >= 480 && !result.contains(&(width, height)) {
-                result.push((width, height));
+            if size.width >= 640 && size.height >= 480 && !result.contains(&resolution) {
+                result.push(resolution);
             }
         }
 
@@ -159,11 +153,6 @@ impl Renderer {
         result
     }
 
-    /// Changes the native window display mode.
-    ///
-    /// Exclusive fullscreen is intentionally implemented with a concrete
-    /// winit VideoMode. Borderless fullscreen does not change the monitor's
-    /// video mode and therefore has no resolution-selection requirement.
     pub fn set_display_mode(&mut self, mode: u8, width: u32, height: u32) {
         let mode = mode.min(2);
 
@@ -183,9 +172,9 @@ impl Renderer {
                     .set_fullscreen(Some(Fullscreen::Borderless(None)));
             }
             2 => {
-                // Pick the highest-refresh-rate video mode that exactly matches
-                // the requested resolution. This is the same path used when a
-                // resolution is changed from the settings menu.
+                // Exclusive fullscreen requires an actual monitor VideoMode.
+                // This is intentionally the same operation used whether the
+                // mode is selected at startup or changed from the settings menu.
                 let preferred = self.window.current_monitor().and_then(|monitor| {
                     monitor
                         .video_modes()
@@ -203,14 +192,13 @@ impl Renderer {
                         height,
                         video_mode.refresh_rate_millihertz()
                     );
-
                     self.resolution_width = width;
                     self.resolution_height = height;
                     self.window
                         .set_fullscreen(Some(Fullscreen::Exclusive(video_mode)));
                 } else {
                     log::warn!(
-                        "Requested exclusive resolution {}x{} is not supported",
+                        "Requested exclusive resolution {}x{} is not supported; using borderless fullscreen",
                         width,
                         height
                     );
@@ -476,10 +464,7 @@ unsafe fn draw_menu(
     let (title, items): (&str, &[&str]) = match menu {
         Menu::Pause => ("PAUSED", &["RESUME", "SETTINGS", "QUIT GAME"]),
         Menu::Settings => ("SETTINGS", &["CONTROLS", "DISPLAY & GRAPHICS", "BACK"]),
-        Menu::Controls => (
-            "CONTROLS",
-            &["Mouse Sensitivity", "Invert X", "Invert Y", "BACK"],
-        ),
+        Menu::Controls => ("CONTROLS", &["Mouse Sensitivity", "Invert X", "Invert Y", "BACK"]),
         Menu::Display => (
             "DISPLAY & GRAPHICS",
             &[
@@ -518,12 +503,7 @@ unsafe fn draw_menu(
             ];
 
             for (i, value) in values.iter().enumerate() {
-                font.draw_text(
-                    value,
-                    0.28,
-                    0.40 - (i as f32) * 0.12,
-                    [150, 230, 170, 255],
-                );
+                font.draw_text(value, 0.28, 0.40 - (i as f32) * 0.12, [150, 230, 170, 255]);
             }
         }
         Menu::Display => {
@@ -536,12 +516,7 @@ unsafe fn draw_menu(
             ];
 
             for (i, value) in values.iter().enumerate() {
-                font.draw_text(
-                    value,
-                    0.28,
-                    0.40 - (i as f32) * 0.12,
-                    [150, 230, 170, 255],
-                );
+                font.draw_text(value, 0.28, 0.40 - (i as f32) * 0.12, [150, 230, 170, 255]);
             }
         }
         _ => {}
