@@ -61,6 +61,7 @@ pub struct Game {
     menu: Option<Menu>,
     menu_selected: usize,
     last_frame: Instant,
+    display_initialized: bool,
 }
 
 struct InputState {
@@ -124,6 +125,7 @@ impl Game {
             menu: None,
             menu_selected: 0,
             last_frame: Instant::now(),
+            display_initialized: false,
         };
 
         game.set_mouse_capture(true);
@@ -256,6 +258,29 @@ impl Game {
         self.renderer
             .set_texture_filtering(self.settings.graphics.texture_filtering);
         self.save_settings();
+    }
+
+    fn apply_initial_display_mode(&mut self) {
+        if self.display_initialized {
+            return;
+        }
+
+        self.display_initialized = true;
+
+        let mode = self.settings.graphics.fullscreen_mode;
+        let width = self.settings.graphics.resolution_width;
+        let height = self.settings.graphics.resolution_height;
+
+        // This is intentionally the first event-loop display operation. The
+        // resolution-change menu uses the exact same Renderer path, which lets
+        // startup and runtime fullscreen behavior stay consistent.
+        log::info!(
+            "Applying initial display mode: mode={}, resolution={}x{}",
+            mode,
+            width,
+            height
+        );
+        self.renderer.set_display_mode(mode, width, height);
     }
 
     fn activate_menu(&mut self) {
@@ -479,6 +504,8 @@ impl Game {
     }
 
     pub fn update_and_render(&mut self) {
+        self.apply_initial_display_mode();
+
         let now = Instant::now();
         let mut dt = (now - self.last_frame).as_secs_f32();
         self.last_frame = now;
