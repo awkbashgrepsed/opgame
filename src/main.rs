@@ -20,7 +20,7 @@ mod font;
 
 use glutin::config::{ConfigTemplateBuilder, GlConfig};
 use glutin_winit::DisplayBuilder;
-use winit::{event::{Event, WindowEvent}, event_loop::{ControlFlow, EventLoop}, window::WindowBuilder};
+use winit::{event::{Event, WindowEvent}, event_loop::{ControlFlow, EventLoop}, window::{Fullscreen, WindowBuilder}};
 use game::Game;
 use settings::Settings;
 
@@ -43,6 +43,34 @@ fn main() {
             .expect("No suitable OpenGL configuration found")
     }).expect("Failed to create window");
     let window = window.expect("Window builder was provided, so a window must exist");
+
+    // Put the window into the saved exclusive mode before creating the OpenGL
+    // surface. This avoids starting as borderless and only becoming exclusive
+    // after the display settings are changed once at runtime.
+    if settings.graphics.fullscreen_mode == 2 {
+        let preferred = window.current_monitor().and_then(|monitor| {
+            monitor.video_modes()
+                .filter(|mode| {
+                    let size = mode.size();
+                    size.width == settings.graphics.resolution_width
+                        && size.height == settings.graphics.resolution_height
+                })
+                .max_by_key(|mode| mode.refresh_rate_millihertz())
+        });
+        if let Some(mode) = preferred {
+            window.set_fullscreen(Some(Fullscreen::Exclusive(mode)));
+        } else {
+            log::warn!(
+                "Saved exclusive resolution {}x{} is not supported; using borderless fullscreen",
+                settings.graphics.resolution_width,
+                settings.graphics.resolution_height
+            );
+            window.set_fullscreen(Some(Fullscreen::Borderless(None)));
+        }
+    } else if settings.graphics.fullscreen_mode == 1 {
+        window.set_fullscreen(Some(Fullscreen::Borderless(None)));
+    }
+
     log::info!("Requested MSAA {}x, selected OpenGL config with {} samples", requested_msaa, gl_config.num_samples());
     let mut game = Game::new(window, gl_config, settings);
     let _ = event_loop.run(move |event, target| {
