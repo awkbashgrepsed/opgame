@@ -12,7 +12,7 @@ use crate::ui::UIManager;
 use crate::vehicle::VehicleManager;
 use crate::world::World;
 use glam::Vec3;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use winit::event::{ElementState, KeyEvent, MouseButton};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::Window;
@@ -25,7 +25,6 @@ const AIM_TURN_SPEED: f32 = 18.0;
 const NORMAL_CAMERA_DISTANCE: f32 = 6.0;
 const AIM_CAMERA_DISTANCE: f32 = 3.8;
 const AIM_CAMERA_SMOOTHNESS: f32 = 10.0;
-const STARTUP_DISPLAY_DELAY: Duration = Duration::from_secs(1);
 
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) enum Menu {
@@ -62,8 +61,6 @@ pub struct Game {
     menu: Option<Menu>,
     menu_selected: usize,
     last_frame: Instant,
-    startup_display_pending: bool,
-    startup_display_at: Instant,
 }
 
 struct InputState {
@@ -77,13 +74,14 @@ struct InputState {
 
 impl Game {
     pub fn new(window: Window, gl_config: glutin::config::Config, settings: Settings) -> Self {
-        let startup_display_at = Instant::now() + STARTUP_DISPLAY_DELAY;
         let renderer = Renderer::new(window, gl_config, &settings);
         let player = Player::new(Vec3::new(0.0, 0.5, 0.0));
         let mut camera = Camera::new();
+
         camera.sensitivity = settings.camera.mouse_sensitivity;
         camera.invert_x = settings.camera.invert_x;
         camera.invert_y = settings.camera.invert_y;
+
         let asset_manager = AssetManager::load();
         let world = World::new(&asset_manager);
         let npc_manager = NPCManager::new();
@@ -126,8 +124,6 @@ impl Game {
             menu: None,
             menu_selected: 0,
             last_frame: Instant::now(),
-            startup_display_pending: true,
-            startup_display_at,
         };
 
         game.set_mouse_capture(true);
@@ -165,6 +161,7 @@ impl Game {
     fn save_settings(&mut self) {
         self.settings.graphics.vsync = self.renderer.vsync();
         self.settings.graphics.fullscreen_mode = self.renderer.fullscreen_mode();
+
         let (w, h) = self.renderer.resolution();
         self.settings.graphics.resolution_width = w;
         self.settings.graphics.resolution_height = h;
@@ -187,6 +184,7 @@ impl Game {
                     && h == self.settings.graphics.resolution_height
             })
             .unwrap_or(0);
+
         let next = (current as i32 + direction).rem_euclid(list.len() as i32) as usize;
         let (w, h) = list[next];
         self.settings.graphics.resolution_width = w;
@@ -199,6 +197,7 @@ impl Game {
             .iter()
             .position(|&v| v == self.settings.graphics.msaa_samples)
             .unwrap_or(0);
+
         let next = (current as i32 + direction).rem_euclid(options.len() as i32) as usize;
         self.settings.graphics.msaa_samples = options[next];
     }
@@ -252,6 +251,7 @@ impl Game {
             self.settings.graphics.resolution_width,
             self.settings.graphics.resolution_height,
         );
+
         self.renderer.set_display_mode(mode, w, h);
         self.renderer
             .set_texture_filtering(self.settings.graphics.texture_filtering);
@@ -479,23 +479,6 @@ impl Game {
     }
 
     pub fn update_and_render(&mut self) {
-        if self.startup_display_pending && Instant::now() >= self.startup_display_at {
-            self.startup_display_pending = false;
-            let (w, h) = (
-                self.settings.graphics.resolution_width,
-                self.settings.graphics.resolution_height,
-            );
-            let mode = self.settings.graphics.fullscreen_mode;
-
-            log::info!(
-                "Applying saved display mode after startup delay: mode={}, resolution={}x{}",
-                mode,
-                w,
-                h
-            );
-            self.renderer.set_display_mode(mode, w, h);
-        }
-
         let now = Instant::now();
         let mut dt = (now - self.last_frame).as_secs_f32();
         self.last_frame = now;
