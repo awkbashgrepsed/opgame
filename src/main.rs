@@ -38,7 +38,9 @@ fn main() {
         .with_stencil_size(8)
         .with_multisampling(requested_msaa);
     let (window, gl_config) = DisplayBuilder::new().with_window_builder(Some(window_builder)).build(&event_loop, template, |configs| {
-        configs.max_by_key(|config| config.num_samples()).expect("No suitable OpenGL configuration found")
+        configs
+            .max_by_key(|config| if requested_msaa == 0 && config.num_samples() == 0 { 10_000 } else if config.num_samples() == requested_msaa { 20_000 } else { config.num_samples() as i32 })
+            .expect("No suitable OpenGL configuration found")
     }).expect("Failed to create window");
     let window = window.expect("Window builder was provided, so a window must exist");
     log::info!("Requested MSAA {}x, selected OpenGL config with {} samples", requested_msaa, gl_config.num_samples());
