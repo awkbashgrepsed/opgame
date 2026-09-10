@@ -41,7 +41,6 @@ struct MapFile {
 struct MapLocation {
     id: String,
     config: String,
-    #[allow(dead_code)]
     position: [f32; 3],
 }
 
@@ -78,17 +77,7 @@ impl World {
             weather: Weather::Clear,
         };
 
-        world.add_road(Vec3::new(-250.0, 0.0, 0.0), Vec3::new(250.0, 0.0, 0.0), 12.0);
-        world.add_road(Vec3::new(0.0, 0.0, -250.0), Vec3::new(0.0, 0.0, 250.0), 12.0);
-        world.add_road(Vec3::new(-250.0, 0.0, -100.0), Vec3::new(250.0, 0.0, -100.0), 8.0);
-        world.add_road(Vec3::new(-250.0, 0.0, 100.0), Vec3::new(250.0, 0.0, 100.0), 8.0);
-        world.add_road(Vec3::new(-100.0, 0.0, -250.0), Vec3::new(-100.0, 0.0, 250.0), 8.0);
-        world.add_road(Vec3::new(100.0, 0.0, -250.0), Vec3::new(100.0, 0.0, 250.0), 8.0);
-        world.spawn_building(Vec3::new(-50.0, 0.0, -50.0), "Building_A");
-        world.spawn_building(Vec3::new(50.0, 0.0, -50.0), "Building_B");
-        world.spawn_building(Vec3::new(-50.0, 0.0, 50.0), "Building_C");
-        world.spawn_building(Vec3::new(50.0, 0.0, 50.0), "Building_D");
-
+        // World contents come entirely from the map/location data files.
         world.load_map("main", asset_manager);
         world
     }
@@ -106,7 +95,12 @@ impl World {
 
         let location_count = file.locations.len();
         for location in file.locations {
-            self.load_location(&location.id, &location.config, asset_manager);
+            self.load_location(
+                &location.id,
+                &location.config,
+                Vec3::from(location.position),
+                asset_manager,
+            );
         }
 
         log::info!(
@@ -120,6 +114,7 @@ impl World {
         &mut self,
         location: &str,
         config_path: &str,
+        location_position: Vec3,
         asset_manager: &AssetManager,
     ) {
         let path = crate::assets::path(config_path);
@@ -155,7 +150,7 @@ impl World {
                 panic!("Location references unknown asset '{}'", definition.asset);
             }
 
-            let position = Vec3::from(definition.position);
+            let position = location_position + Vec3::from(definition.position);
             let rotation = Vec3::from(definition.rotation);
             let scale = Vec3::from(definition.scale) * asset_manager.default_scale(&definition.asset);
             let collider = asset_manager.collision_aabb(&definition.asset);
@@ -174,17 +169,6 @@ impl World {
 
     pub fn add_road(&mut self, start: Vec3, end: Vec3, width: f32) {
         self.roads.push(Road { start, end, width });
-    }
-
-    pub fn spawn_building(&mut self, position: Vec3, name: &str) {
-        let obj = GameObject::new(position, name.to_string())
-            .with_box_collider(Vec3::new(5.0, 5.0, 5.0));
-        self.objects.insert(obj.id, obj);
-    }
-
-    pub fn spawn_object(&mut self, position: Vec3, name: &str) {
-        let obj = GameObject::new(position, name.to_string());
-        self.objects.insert(obj.id, obj);
     }
 
     pub fn remove_object(&mut self, id: Uuid) {
