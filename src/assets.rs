@@ -13,7 +13,9 @@ pub struct AssetDefinition {
     pub scale: [f32; 3],
 }
 
-fn default_scale() -> [f32; 3] { [1.0, 1.0, 1.0] }
+fn default_scale() -> [f32; 3] {
+    [1.0, 1.0, 1.0]
+}
 
 #[derive(Debug, Deserialize)]
 struct AssetFile {
@@ -27,7 +29,7 @@ pub struct AssetManager {
 
 impl AssetManager {
     pub fn load() -> Self {
-        let path = path("assets/assets.toml");
+        let path = path("assets.toml");
         let text = fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("Failed to read asset manifest {}: {e}", path.display()));
         let file: AssetFile = toml::from_str(&text)
@@ -35,37 +37,69 @@ impl AssetManager {
         if file.version != 1 {
             panic!("Unsupported asset manifest version {}", file.version);
         }
-        log::info!("Loaded {} asset definition(s) from {}", file.assets.len(), path.display());
-        Self { definitions: file.assets }
+        log::info!(
+            "Loaded {} asset definition(s) from {}",
+            file.assets.len(),
+            path.display()
+        );
+        Self {
+            definitions: file.assets,
+        }
     }
 
     pub fn get(&self, id: &str) -> &AssetDefinition {
-        self.definitions.get(id).unwrap_or_else(|| panic!("Unknown asset '{id}'"))
+        self.definitions
+            .get(id)
+            .unwrap_or_else(|| panic!("Unknown asset '{id}'"))
     }
 
-    pub fn model_path(&self, id: &str) -> PathBuf { path(&self.get(id).model) }
-    pub fn collision_path(&self, id: &str) -> PathBuf { path(&self.get(id).collision) }
-    pub fn default_scale(&self, id: &str) -> Vec3 { self.get(id).scale.into() }
+    pub fn model_path(&self, id: &str) -> PathBuf {
+        path(&self.get(id).model)
+    }
+
+    pub fn collision_path(&self, id: &str) -> PathBuf {
+        path(&self.get(id).collision)
+    }
+
+    pub fn default_scale(&self, id: &str) -> Vec3 {
+        self.get(id).scale.into()
+    }
 
     pub fn collision_aabb(&self, id: &str) -> Aabb {
         let collision_path = self.collision_path(id);
-        let (document, buffers, _) = gltf::import(&collision_path)
-            .unwrap_or_else(|e| panic!("Failed to load collision asset {}: {e}", collision_path.display()));
+        let (document, buffers, _) = gltf::import(&collision_path).unwrap_or_else(|e| {
+            panic!(
+                "Failed to load collision asset {}: {e}",
+                collision_path.display()
+            )
+        });
         let mut min = Vec3::splat(f32::INFINITY);
         let mut max = Vec3::splat(f32::NEG_INFINITY);
         let mut found = false;
         for scene in document.scenes() {
             for node in scene.nodes() {
-                collect_bounds(node, glam::Mat4::IDENTITY, &buffers, &mut min, &mut max, &mut found);
+                collect_bounds(
+                    node,
+                    glam::Mat4::IDENTITY,
+                    &buffers,
+                    &mut min,
+                    &mut max,
+                    &mut found,
+                );
             }
         }
         if !found {
-            panic!("Collision asset {} contains no mesh positions", collision_path.display());
+            panic!(
+                "Collision asset {} contains no mesh positions",
+                collision_path.display()
+            );
         }
         Aabb::from_min_max(min, max)
     }
 
-    pub fn contains(&self, id: &str) -> bool { self.definitions.contains_key(id) }
+    pub fn contains(&self, id: &str) -> bool {
+        self.definitions.contains_key(id)
+    }
 }
 
 fn collect_bounds(
@@ -95,16 +129,33 @@ fn collect_bounds(
     }
 }
 
-/// Resolve a runtime asset path. Development assets live under `data/`.
+/// Resolve a runtime asset path.
+///
+/// Models live in the repository-level `models/` directory. Runtime builds
+/// place both `models/` and `data/` underneath the single `assets/` root.
 pub fn path(relative: impl AsRef<Path>) -> PathBuf {
     let relative = relative.as_ref();
+
     if let Ok(exe) = std::env::current_exe() {
         if let Some(exe_dir) = exe.parent() {
             let packaged = exe_dir.join("assets").join(relative);
-            if packaged.exists() { return packaged; }
+            if packaged.exists() {
+                return packaged;
+            }
         }
     }
-    let development = PathBuf::from("data").join(relative);
-    if development.exists() { return development; }
+
+    if relative.starts_with("models") {
+        let models = PathBuf::from(relative);
+        if models.exists() {
+            return models;
+        }
+    } else {
+        let development = PathBuf::from("data").join(relative);
+        if development.exists() {
+            return development;
+        }
+    }
+
     PathBuf::from("assets").join(relative)
 }
