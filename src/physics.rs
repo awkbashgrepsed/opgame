@@ -14,7 +14,14 @@ pub struct PhysicsEngine {
 impl PhysicsEngine {
     pub fn new() -> Self {
         let asset_manager = AssetManager::load();
-        let player_collider = asset_manager.collision_aabb("player");
+        let local = asset_manager.collision_aabb("player");
+        let scale = asset_manager.default_scale("player");
+        let player_collider = Aabb::new(
+            local.center * scale,
+            local.half_extents * scale.abs(),
+        );
+
+        log::info!("Loaded player collision from asset manifest");
 
         Self {
             gravity: GRAVITY,
