@@ -16,6 +16,7 @@ pub struct Road {
 
 pub struct World {
     pub objects: HashMap<Uuid, GameObject>,
+    map_collider: Option<Aabb>,
     pub roads: Vec<Road>,
     pub width: f32,
     pub height: f32,
@@ -71,6 +72,7 @@ impl World {
     pub fn new(asset_manager: &AssetManager) -> Self {
         let mut world = Self {
             objects: HashMap::new(),
+            map_collider: None,
             roads: Vec::new(),
             width: 1000.0,
             height: 1000.0,
@@ -93,23 +95,19 @@ impl World {
             panic!("Unsupported map version {}", file.version);
         }
 
-        // The map itself is a normal asset. Its render model and collision
-        // model therefore come from the asset manifest instead of hardcoded
-        // geometry or a hardcoded world collider.
         if !asset_manager.contains(&file.map_asset) {
             panic!("Map references unknown asset '{}'", file.map_asset);
         }
 
+        // Keep the render model separate from the object list. The renderer
+        // already draws the map asset directly; physics gets its collision
+        // from the same data-driven asset definition.
         let map_scale = asset_manager.default_scale(&file.map_asset);
-        let map_collider = asset_manager.collision_aabb(&file.map_asset);
-        let map = GameObject::from_asset(
-            &file.map_asset,
-            Vec3::ZERO,
-            Vec3::ZERO,
-            map_scale,
-            map_collider,
-        );
-        self.objects.insert(map.id, map);
+        let local = asset_manager.collision_aabb(&file.map_asset);
+        self.map_collider = Some(Aabb::new(
+            local.center * map_scale,
+            local.half_extents * map_scale.abs(),
+        ));
 
         let location_count = file.locations.len();
         for location in file.locations {
@@ -195,9 +193,9 @@ impl World {
     }
 
     pub fn collision_boxes(&self) -> impl Iterator<Item = Aabb> + '_ {
-        self.objects
-            .values()
-            .filter_map(|object| object.collision_aabb())
+        self.map_collider
+            .into_iter()
+            .chain(self.objects.values().filter_map(|object| object.collision_aabb()))
     }
 
     pub fn update_time(&mut self, delta: f32) {
