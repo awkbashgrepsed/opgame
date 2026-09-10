@@ -1,0 +1,7 @@
+version = 1
+name = "main"
+
+[[locations]]
+id = "village_a"
+config = "maps/main/locations/village_a/location.toml"
+position = [0.0, 0.0, 0.0]
