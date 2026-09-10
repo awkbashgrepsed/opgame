@@ -8,6 +8,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data"
+MODELS = ROOT / "models"
 DIST = ROOT / "dist"
 
 
@@ -23,8 +24,8 @@ def main() -> int:
         print(f"Build succeeded, but binary was not found: {binary}", file=sys.stderr)
         return 1
 
-    # The runtime has exactly one data root: dist/assets.
-    # Preserve the user's runtime settings when rebuilding.
+    # The source tree keeps models and data separate.
+    # The packaged runtime combines them under one assets root.
     runtime_settings = DIST / "assets" / "config" / "settings.toml"
     saved_settings = runtime_settings.read_bytes() if runtime_settings.exists() else None
 
@@ -37,6 +38,7 @@ def main() -> int:
 
     output_assets = DIST / "assets"
     shutil.copytree(DATA, output_assets)
+    shutil.copytree(MODELS, output_assets / "models")
 
     if saved_settings is not None:
         settings_path = output_assets / "config" / "settings.toml"
@@ -46,6 +48,7 @@ def main() -> int:
     print(f"Runtime assembled in: {DIST}")
     print(f"  binary: {output_binary.name}")
     print(f"  data:   {output_assets}")
+    print(f"  models: {output_assets / 'models'}")
     return 0
 
 
