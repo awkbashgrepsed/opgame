@@ -143,7 +143,7 @@ impl PhysicsEngine {
 fn ray_aabb(origin: Vec3, direction: Vec3, aabb: &Aabb, max_distance: f32) -> Option<f32> {
     let min = aabb.min();
     let max = aabb.max();
-    let mut t_min = 0.0;
+    let mut t_min: f32 = 0.0;
     let mut t_max = max_distance;
 
     for axis in 0..3 {
