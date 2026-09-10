@@ -129,18 +129,23 @@ fn collect_bounds(
     }
 }
 
-/// Resolve a runtime asset path.
+/// Resolve a runtime data/model path.
 ///
-/// Models live in the repository-level `models/` directory. Runtime builds
-/// place both `models/` and `data/` underneath the single `assets/` root.
+/// The source tree keeps `data/` and `models/` as separate top-level
+/// directories, and the packaged runtime mirrors that same layout next to the
+/// executable.
 pub fn path(relative: impl AsRef<Path>) -> PathBuf {
     let relative = relative.as_ref();
 
     if let Ok(exe) = std::env::current_exe() {
         if let Some(exe_dir) = exe.parent() {
-            let packaged = exe_dir.join("assets").join(relative);
-            if packaged.exists() {
-                return packaged;
+            let packaged_root = if relative.starts_with("models") {
+                exe_dir.join(relative)
+            } else {
+                exe_dir.join("data").join(relative)
+            };
+            if packaged_root.exists() {
+                return packaged_root;
             }
         }
     }
@@ -157,5 +162,9 @@ pub fn path(relative: impl AsRef<Path>) -> PathBuf {
         }
     }
 
-    PathBuf::from("assets").join(relative)
+    if relative.starts_with("models") {
+        PathBuf::from(relative)
+    } else {
+        PathBuf::from("data").join(relative)
+    }
 }
