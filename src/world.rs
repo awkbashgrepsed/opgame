@@ -104,11 +104,16 @@ impl World {
             panic!("Unsupported map version {}", file.version);
         }
 
+        let location_count = file.locations.len();
         for location in file.locations {
             self.load_location(&location.id, &location.config, asset_manager);
         }
 
-        log::info!("Loaded map '{}' with {} location(s)", map_name, file.locations.len());
+        log::info!(
+            "Loaded map '{}' with {} location(s)",
+            map_name,
+            location_count
+        );
     }
 
     fn load_location(
