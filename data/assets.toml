@@ -1,5 +1,15 @@
 version = 1
 
+[assets.player]
+model = "models/player.glb"
+collision = "models/player_coll.glb"
+scale = [0.8, 0.8, 0.8]
+
+[assets.map]
+model = "models/environment/map.glb"
+collision = "models/environment/map_coll.glb"
+scale = [1.0, 1.0, 1.0]
+
 [assets.crate]
 model = "models/props/crate/crate.glb"
 collision = "models/props/crate/crate_coll.glb"
