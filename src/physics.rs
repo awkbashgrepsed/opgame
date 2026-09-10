@@ -1,25 +1,29 @@
+use crate::assets::AssetManager;
 use crate::collision::{collision_between, Aabb};
 use crate::player::Player;
 use crate::world::World;
 use glam::Vec3;
 
 const GRAVITY: f32 = 20.0;
-const PLAYER_HALF_EXTENTS: Vec3 = Vec3::new(0.35, 0.9, 0.35);
-const GROUND_Y: f32 = 0.5;
 
 pub struct PhysicsEngine {
     gravity: f32,
+    player_collider: Aabb,
 }
 
 impl PhysicsEngine {
     pub fn new() -> Self {
-        Self { gravity: GRAVITY }
+        let asset_manager = AssetManager::load();
+        let player_collider = asset_manager.collision_aabb("player");
+
+        Self {
+            gravity: GRAVITY,
+            player_collider,
+        }
     }
 
     pub fn update(&mut self, player: &mut Player, world: &World, movement: Vec3, dt: f32) {
-        // Gravity is owned by the physics system. Player.position is the
-        // character's foot position, so the collision box is centered above it.
-        if player.position.y > GROUND_Y || player.velocity.y > 0.0 {
+        if player.velocity.y != 0.0 || player.position.y > self.player_ground_y() {
             player.velocity.y -= self.gravity * dt;
         }
 
@@ -27,29 +31,13 @@ impl PhysicsEngine {
         displacement.y += player.velocity.y * dt;
 
         let mut position = player.position;
-        position = self.resolve_axis(position, PLAYER_HALF_EXTENTS, displacement.x, 0, world);
-        position = self.resolve_axis(position, PLAYER_HALF_EXTENTS, displacement.z, 2, world);
+        position = self.resolve_axis(position, displacement.x, 0, world);
+        position = self.resolve_axis(position, displacement.z, 2, world);
 
-        // Vertical collision needs to tell us whether we landed on a surface.
-        // A positive Y collision normal means the surface is underneath the
-        // player, regardless of whether that surface is the ground, a crate,
-        // a platform, or another world object.
-        let (vertical_position, landed) = self.resolve_vertical(
-            position,
-            PLAYER_HALF_EXTENTS,
-            displacement.y,
-            world,
-        );
+        let (vertical_position, landed) = self.resolve_vertical(position, displacement.y, world);
         position = vertical_position;
 
-        if position.y <= GROUND_Y {
-            position.y = GROUND_Y;
-            if player.velocity.y < 0.0 {
-                player.velocity.y = 0.0;
-            }
-            player.is_falling = false;
-            player.is_jumping = false;
-        } else if landed {
+        if landed {
             player.velocity.y = 0.0;
             player.is_falling = false;
             player.is_jumping = false;
@@ -57,15 +45,14 @@ impl PhysicsEngine {
             player.is_falling = true;
         }
 
-        position.x = position.x.clamp(-500.0, 500.0);
-        position.z = position.z.clamp(-500.0, 500.0);
+        // There is no invisible ground plane or artificial world boundary.
+        // The authored map collision determines where the player can stand.
         player.position = position;
     }
 
     fn resolve_axis(
         &self,
         position: Vec3,
-        half_extents: Vec3,
         amount: f32,
         axis: usize,
         world: &World,
@@ -76,12 +63,12 @@ impl PhysicsEngine {
 
         let mut candidate = position;
         candidate[axis] += amount;
-        let mut player_box = self.player_aabb(candidate, half_extents);
+        let mut player_box = self.player_aabb(candidate);
 
         for world_box in world.collision_boxes() {
             if let Some(hit) = collision_between(&player_box, &world_box) {
                 candidate += hit.normal * hit.depth;
-                player_box = self.player_aabb(candidate, half_extents);
+                player_box = self.player_aabb(candidate);
             }
         }
 
@@ -91,7 +78,6 @@ impl PhysicsEngine {
     fn resolve_vertical(
         &self,
         position: Vec3,
-        half_extents: Vec3,
         amount: f32,
         world: &World,
     ) -> (Vec3, bool) {
@@ -101,36 +87,37 @@ impl PhysicsEngine {
 
         let mut candidate = position;
         candidate.y += amount;
-        let mut player_box = self.player_aabb(candidate, half_extents);
+        let mut player_box = self.player_aabb(candidate);
         let mut landed = false;
 
         for world_box in world.collision_boxes() {
             if let Some(hit) = collision_between(&player_box, &world_box) {
-                // Only a downward movement into an upward-facing surface is
-                // considered a landing. Hitting a wall or the underside of an
-                // object must not make the player grounded.
                 if amount < 0.0 && hit.normal.y > 0.5 {
                     landed = true;
                 }
 
                 candidate += hit.normal * hit.depth;
-                player_box = self.player_aabb(candidate, half_extents);
+                player_box = self.player_aabb(candidate);
             }
         }
 
         (candidate, landed)
     }
 
-    fn player_aabb(&self, feet_position: Vec3, half_extents: Vec3) -> Aabb {
+    fn player_aabb(&self, feet_position: Vec3) -> Aabb {
         Aabb::new(
-            feet_position + Vec3::new(0.0, half_extents.y, 0.0),
-            half_extents,
+            feet_position + self.player_collider.center,
+            self.player_collider.half_extents,
         )
+    }
+
+    fn player_ground_y(&self) -> f32 {
+        self.player_collider.center.y - self.player_collider.half_extents.y
     }
 
     pub fn raycast(&self, origin: Vec3, direction: Vec3, max_distance: f32, world: &World) -> Option<Vec3> {
         let direction = direction.try_normalize()?;
-        let mut closest_distance: f32 = max_distance;
+        let mut closest_distance = max_distance;
         let mut closest_hit = None;
 
         for object_box in world.collision_boxes() {
@@ -149,8 +136,8 @@ impl PhysicsEngine {
 fn ray_aabb(origin: Vec3, direction: Vec3, aabb: &Aabb, max_distance: f32) -> Option<f32> {
     let min = aabb.min();
     let max = aabb.max();
-    let mut t_min: f32 = 0.0;
-    let mut t_max: f32 = max_distance;
+    let mut t_min = 0.0;
+    let mut t_max = max_distance;
 
     for axis in 0..3 {
         if direction[axis].abs() < 1e-6 {
