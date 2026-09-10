@@ -34,6 +34,7 @@ pub enum Weather {
 #[derive(Debug, Deserialize)]
 struct MapFile {
     version: u32,
+    map_asset: String,
     locations: Vec<MapLocation>,
 }
 
@@ -77,7 +78,6 @@ impl World {
             weather: Weather::Clear,
         };
 
-        // World contents come entirely from the map/location data files.
         world.load_map("main", asset_manager);
         world
     }
@@ -93,6 +93,24 @@ impl World {
             panic!("Unsupported map version {}", file.version);
         }
 
+        // The map itself is a normal asset. Its render model and collision
+        // model therefore come from the asset manifest instead of hardcoded
+        // geometry or a hardcoded world collider.
+        if !asset_manager.contains(&file.map_asset) {
+            panic!("Map references unknown asset '{}'", file.map_asset);
+        }
+
+        let map_scale = asset_manager.default_scale(&file.map_asset);
+        let map_collider = asset_manager.collision_aabb(&file.map_asset);
+        let map = GameObject::from_asset(
+            &file.map_asset,
+            Vec3::ZERO,
+            Vec3::ZERO,
+            map_scale,
+            map_collider,
+        );
+        self.objects.insert(map.id, map);
+
         let location_count = file.locations.len();
         for location in file.locations {
             self.load_location(
@@ -104,9 +122,10 @@ impl World {
         }
 
         log::info!(
-            "Loaded map '{}' with {} location(s)",
+            "Loaded map '{}' with {} location(s) and map asset '{}'",
             map_name,
-            location_count
+            location_count,
+            file.map_asset
         );
     }
 
